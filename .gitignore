@@ -1,0 +1,14 @@
+# Softhouse per-project runtime state — belongs in the consuming repo, not here
+.softhouse/tasks.json
+.softhouse/handoff/
+.softhouse/runs/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local Claude Code settings
+.claude/settings.local.json
