@@ -7,7 +7,7 @@ Softhouse turns a one-line requirement into a planned, parallelized, reviewed, a
 It ships as three Claude Code skills — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.1-blue)
+![Version](https://img.shields.io/badge/version-2.2-blue)
 
 ---
 
@@ -59,6 +59,8 @@ Handing a large requirement to a single agent produces one long serial session w
 
 **Everything is resumable.** All state lives in `.softhouse/tasks.json`. Any interruption — context limit, crash, you closing the laptop — resumes with `/softhouse resume`.
 
+**Each project pins a pipeline version.** Softhouse installs once globally and is shared by every project on the machine, so editing it would otherwise change how all of them run at once. Instead, each project commits a `.softhouse/pipeline.json` pin that pre-flight checks: a minor drift warns and re-pins, a **major** drift (task schema, stage set, or a safety boundary) stops the run until you explicitly adopt it, and a run already in progress is never continued under a different version. Every run archive records the version that produced it. Note that vendoring a copy of the skill into a repo does *not* work as an alternative — Claude Code resolves same-named skills enterprise → personal → project, so a personal skill overrides a project one.
+
 ## How a run flows
 
 ```
@@ -85,6 +87,7 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
 
 ```
 .softhouse/
+  pipeline.json        # pinned pipeline version — COMMIT THIS
   tasks.json           # current run state; idle between runs
   patterns.md          # learned patterns, appended by each postmortem
   uat.md               # your project's UAT definition (see templates/)
@@ -103,7 +106,7 @@ Starter templates for `patterns.md`, `uat.md`, and `design/design.md` are in [`t
 mkdir -p .softhouse && cp path/to/claude-softhouse/templates/* .softhouse/
 ```
 
-Only `patterns.md`, `uat.md`, and `design/` are worth committing in your project — the rest is run state.
+Commit `pipeline.json`, `patterns.md`, `uat.md`, and `design/` — the rest is run state.
 
 ## Adapting it to your project
 

@@ -5,6 +5,9 @@ description: Multi-agent development pipeline — plans a requirement into a tas
 
 # /softhouse — Multi-Agent Development Pipeline (v2)
 
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.2 -->
+**PIPELINE VERSION: `2.2`** — this is the authoritative version string. Report it in STEP 0, stamp it into every run archive, and bump it whenever the task schema or a pipeline stage changes (see the Versioning section).
+
 Orchestrates a 9-step pipeline that plans, executes, reviews, and merges development tasks using parallel worker agents.
 
 v2 changes (2026-07-02, from production build + hardening runs): `executor` routing (agent/orchestrator/user), fork-from-current-main guarantee + merge-base check, mandatory environment-safety preamble in every worker prompt, run-namespaced handoffs, a concrete review checklist + orchestrator micro-fix rule, batched integration testing, project-parameterized UAT, backlog carry-forward, and worktree/branch hygiene in cleanup.
@@ -19,10 +22,19 @@ v2.1 adds the **design stage** (2026-07-02): a `designer` agent_role that produc
 
 ### STEP 0 — Pre-flight
 1. Run `git status` — abort if working tree is dirty (unstaged/uncommitted changes). Warn the user and stop.
-2. Read `CLAUDE.md` (or project context file) if it exists.
-3. Read `.softhouse/patterns.md` — these are learned patterns from prior runs. Use them to inform planning.
-4. Read `.softhouse/tasks.json` — check current state. Also read the most recent `.softhouse/runs/*.json` archive and pull its `backlog` array into planning input (gaps found mid-run must not be lost).
-5. Identify the **environment-safety facts** for this project (from CLAUDE.md/patterns.md): is there a LIVE deployment on this host? Which docker compose project is live? What is the isolated test-stack command? These feed the mandatory safety preamble in STEP 3.
+2. **Pipeline-version check** (see Versioning below). Read `.softhouse/pipeline.json`:
+   - **Missing** → this project has never pinned a version. Create it with the CURRENT pipeline version and tell the user it was pinned. Do not block.
+   - **Pinned version == current** → proceed silently.
+   - **Pinned MAJOR < current MAJOR** → **STOP.** A major bump means the task schema or a safety boundary changed and prior runs are not directly comparable. Report both versions and the CHANGELOG delta, then ask the user to re-pin (`Adopt` / `Abort`). Never auto-adopt a major bump.
+   - **Pinned MINOR < current MINOR** → warn, list what changed, and continue. Re-pin automatically and say so.
+   - **Pinned version > current** → the project ran on a NEWER pipeline than the installed skill (a stale or downgraded install). Warn loudly and ask before proceeding — running an old pipeline over new-schema state can corrupt `tasks.json`.
+   Never silently rewrite a pin on a major mismatch; the whole point is that the change is visible.
+3. Read `CLAUDE.md` (or project context file) if it exists.
+4. Read `.softhouse/patterns.md` — these are learned patterns from prior runs. Use them to inform planning.
+5. Read `.softhouse/tasks.json` — check current state. Also read the most recent `.softhouse/runs/*.json` archive and pull its `backlog` array into planning input (gaps found mid-run must not be lost). If that archive records a different `pipeline_version` than the current one, treat its planning advice as version-qualified — a pattern learned under an older schema may no longer apply.
+6. Identify the **environment-safety facts** for this project (from CLAUDE.md/patterns.md): is there a LIVE deployment on this host? Which docker compose project is live? What is the isolated test-stack command? These feed the mandatory safety preamble in STEP 3.
+
+**A run already in progress pins harder:** if `tasks.json` has `status != "idle"` and its `pipeline_version` differs from the current skill version, do NOT continue it under the new version. Finish it with `/softhouse resume` on the pinned version, or abort and re-plan. Mid-run schema changes are the single most damaging drift case — a half-executed graph written under one schema and completed under another produces branches nobody reviewed correctly.
 
 ### STEP 1 — Decide Mode
 - If the argument is `"resume"`, skip directly to **STEP 4**.
@@ -94,10 +106,11 @@ CX ACCEPTANCE CRITERIA (applicable items must pass; N/A items must be justified)
 ```
 
 **After planning:**
-1. Write the plan to `.softhouse/tasks.json`:
+1. Write the plan to `.softhouse/tasks.json` (`pipeline_version` is the version that produced this graph — it makes the run self-describing and drives the resume check in STEP 0):
    ```json
    {
      "run_id": "<timestamp-based-id>",
+     "pipeline_version": "<current pipeline version>",
      "feature": "<short feature name>",
      "requirement": "<full requirement text>",
      "status": "planning",
@@ -266,10 +279,10 @@ Between the `<!-- LEARNED PATTERNS START -->` and `<!-- LEARNED PATTERNS END -->
 ```
 
 ### STEP 9 — Cleanup
-1. Copy `.softhouse/tasks.json` to `.softhouse/runs/{run_id}.json` (this archive preserves the `backlog` for the next run's STEP 0).
-2. Reset `tasks.json` to idle state:
+1. Copy `.softhouse/tasks.json` to `.softhouse/runs/{run_id}.json` (this archive preserves the `backlog` for the next run's STEP 0, and its `pipeline_version` records which pipeline actually produced the run).
+2. Reset `tasks.json` to idle state, carrying the version forward:
    ```json
-   { "run_id": null, "feature": null, "requirement": null, "status": "idle", "tasks": [] }
+   { "run_id": null, "pipeline_version": "<current pipeline version>", "feature": null, "requirement": null, "status": "idle", "tasks": [] }
    ```
 3. **Worktree & branch hygiene:** remove this run's agent worktrees (`git worktree remove`, then `git worktree prune`); delete MERGED `softhouse/*` and `worktree-agent-*` branches (`git branch --merged main | ... | xargs git branch -D`). List any UNMERGED ones for the user instead of deleting. Permission-locked worktree dirs from still-live agents are left alone.
 4. Final commit + **push**: `git add .softhouse/ && git commit -m "softhouse: complete — {feature}" && git push`
@@ -280,6 +293,29 @@ Between the `<!-- LEARNED PATTERNS START -->` and `<!-- LEARNED PATTERNS END -->
 - If more than 50% of tasks fail, abort the run and report to user.
 - All state is persisted in `.softhouse/tasks.json` — any interruption can be resumed with `/softhouse resume`.
 - If an `executor: "orchestrator"` step involves an atomic live-system window (secrets + config + restart), NEVER apply it partially: prepare everything, then apply in one window — user-scheduled if disruptive.
+
+## Versioning (why the STEP 0 check exists)
+
+Softhouse is normally installed **once globally** (`~/.claude/skills/`) and shared by every project on the machine. Claude Code resolves same-named skills as **enterprise → personal → project**, and personal overrides project — so vendoring a copy into a repo's `.claude/skills/` does NOT shadow the global one. Per-project pinning therefore cannot be done by copying the skill; it is done with a version marker the pipeline itself checks.
+
+Without that check, editing the global skill silently changes how every project on the host runs, including projects whose archived runs then describe a pipeline that no longer exists.
+
+**`.softhouse/pipeline.json`** — commit this file; it is project configuration, not run state:
+```json
+{
+  "pipeline_version": "2.2",
+  "pinned_at": "<ISO date>",
+  "note": "Bumped after adopting <change>. See CHANGELOG."
+}
+```
+
+**Version semantics** (the MAJOR/MINOR split is what makes the STEP 0 check meaningful):
+- **MAJOR** — the task-object schema changed, a stage was added/removed/reordered, or a safety boundary moved (executor routing, the worker preamble, isolation rules). Existing plans may not execute correctly. Requires explicit user adoption.
+- **MINOR** — stages and schema unchanged; wording, checklists, defaults, or model routing refined. Safe to adopt automatically with a notice.
+
+**When you change this skill, you MUST** bump the version at the top of this file, add a CHANGELOG entry stating whether it is major or minor and what breaks, and — if major — state what a pinned project must do to adopt it. A change that skips the bump is invisible to every project's pre-flight check, which defeats the mechanism entirely.
+
+**Project-specific behavior does not belong in this skill.** Put it in `.softhouse/patterns.md` (constraints, environment topology, codebase facts) or `CLAUDE.md`. That separation is what lets one global pipeline serve projects with very different stacks — the skill stays generic, the knowledge stays local. If you find yourself wanting to edit the skill for one project, the rule you want almost certainly belongs in that project's `patterns.md` instead.
 
 ## Customization Notes
 - Adapt `target` values to match your project's areas

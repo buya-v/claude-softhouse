@@ -5,6 +5,9 @@ description: Planning-only phase of the Softhouse pipeline — breaks a requirem
 
 # /softhouse-plan — Plan Only (No Execution) (v2)
 
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.2 -->
+**PIPELINE VERSION: `2.2`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
+
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
 Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2) — a plan written here must execute unmodified under `/softhouse resume`.
@@ -16,6 +19,7 @@ Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2) — a plan written he
 
 ### STEP 0 — Pre-flight
 1. Run `git status` — abort if working tree is dirty.
+1b. **Pipeline-version check** — read `.softhouse/pipeline.json` and apply the SAME rules as `/softhouse` STEP 0: missing → pin at the current version and say so; major mismatch → stop and ask the user to adopt; minor mismatch → warn, re-pin, continue; pinned newer than the skill → warn and ask. A plan must be written by the same pipeline version that will execute it, or `/softhouse resume` will reject it.
 2. Read `CLAUDE.md` (or project context file) if it exists.
 3. Read `.softhouse/patterns.md` for learned patterns.
 4. Read `.softhouse/tasks.json` — check current state. If a run is already IN PROGRESS (any task `in_progress`), warn the user. If the previous run is terminal (all tasks done/approved/deferred/cancelled), it is safe to replace — archive it to `.softhouse/runs/` first if not already there.
@@ -65,10 +69,11 @@ Each task object:
 - `model` defaults: coder/test_writer/cx_reviewer → `"sonnet"`; `"haiku"` for trivial tasks; `"opus"` for architecture/security/intricate-refactor/correctness-keystone tasks
 
 **After planning:**
-1. Write plan to `.softhouse/tasks.json`:
+1. Write plan to `.softhouse/tasks.json` (`pipeline_version` records which pipeline produced the graph — `/softhouse resume` checks it before executing):
    ```json
    {
      "run_id": "<timestamp-based-id>",
+     "pipeline_version": "<current pipeline version>",
      "feature": "<short feature name>",
      "requirement": "<full requirement text>",
      "status": "planning",

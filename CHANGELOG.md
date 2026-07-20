@@ -2,6 +2,18 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.2] — 2026-07-20 — MINOR
+
+Added **per-project pipeline version pinning**. No task-schema or stage changes, so adopting this is safe and automatic.
+
+- New `.softhouse/pipeline.json` (committed project config) pins the pipeline version a project runs under.
+- **STEP 0 version check** in both `/softhouse` and `/softhouse-plan`: missing pin → created silently; MINOR drift → warn, list changes, re-pin, continue; MAJOR drift → **stop** and require explicit user adoption; pin newer than the installed skill → warn and ask, since running an old pipeline over new-schema state can corrupt `tasks.json`.
+- A run already in progress under a different version is never continued under the new one — mid-run schema drift is the most damaging case.
+- `tasks.json` and every `runs/{run_id}.json` archive now carry `pipeline_version`, making each run self-describing; postmortem advice from a different version is treated as version-qualified.
+- Documented **MAJOR vs MINOR semantics**: MAJOR = task schema, stage set, or a safety boundary changed; MINOR = wording, checklists, defaults, model routing.
+
+Rationale: Softhouse is installed once globally and shared by every project on a host, and Claude Code resolves same-named skills enterprise → personal → project — *personal overrides project*, so vendoring a copy into a repo does **not** shadow the global one. Pinning by version marker is the only mechanism that actually works; without it, editing the global skill silently changes how every project runs.
+
 ## [2.1] — 2026-07-02
 
 Added the **design stage** — design now happens before code, not after.
