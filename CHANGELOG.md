@@ -2,6 +2,24 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.7] — 2026-10-01
+
+From a field review of every Softhouse pipeline run under one home directory: nine projects, four independent forks, seven months (`docs/field-review-2026-10-01.md`). The common root cause of every recurring failure was that lessons stayed prose; 2.7 makes the learning loop structural and ports the forks' proven mechanisms.
+
+- **Bounded learning**: `patterns.md` is capped at 150 lines and STEP 9 refuses to complete a run over the cap; postmortems go to `patterns-archive.md`; STEP 8 may promote at most three one-line rules per run and each must name the check that enforces it; a lesson seen twice with no enforcing check is flagged "recurring lesson, no gate". STEP 0 reads the active file in full and greps the archive.
+- **Review questions**: protected tasks carry `review_questions`; workers answer each with `file:line`; the independent reviewer verifies the answers before looking further. Orchestrator edits to protected files go back for a delta review. A dead review agent is never an approval.
+- **Planning-time red result** recorded for every `Done when:`; `orchestrator:` prefix for assertions that need the full stack; anchored acceptance regexes; `SCOPE SELF-CHECK` as the first line of every description.
+- **Briefs**: the assembled worker prompt is persisted under `.softhouse/briefs/{run}/{task}.md`; runs whose tasks share a spec get a committed `brief.md` (template added).
+- **Honesty tags** `[VERIFIED: <source>]` / `[UNVERIFIED]` on material claims; a fabricated provenance marker is a rejection; new tag `unverified-claim`.
+- **Agent-failure recovery**: on timeout, rate limit, "stopped" or a duplicate completion, verify the tree, run the acceptance line on what is there, finish the last mile or mark `agent-no-commit`; never re-spawn blindly.
+- **Shared-sequential isolation mode** (`"isolation"` on the run) for repos where worktrees are impractical; the orchestrator re-runs the gate before every commit.
+- **Promotion gate**: `promotion: "test"` stops child-facing, money-moving or outward-facing work at the TEST environment behind an `executor: "user"` decision.
+- **Merge guards** from real incidents: assert the current branch before every merge; stage explicit paths while workers are live; read handoffs with `git show <branch>:<path>` and three-dot diffs; never `--theirs/--ours` on source; interim gating run after the first protected merge; legacy suites before gating ones.
+- **Tags and metrics**: `files-hint-incomplete` (planning defect, not a worker one), `review-caught-defect` (excluded from the escalation rule — reviews catching defects is the mechanism working), every escalation carries a "resolved when"; metrics gain `pipeline_version`, `isolation`, `scope_stops`, `recovered_agents`, `orchestrator_repairs`, `delta_reviews`, `uat_suites`, `promoted_to_prod`, `parked_at_test`, `tokens_by_role`, `rules_promoted`, and `active_min` replaces `wall_clock_min`; review tokens count toward `tokens_per_approved_task`.
+- Designer handoffs are copied to `.softhouse/design/specs/` so the design record survives handoff rotation; dependents of a failed task are marked `blocked`; `.softhouse/` must be excluded from the project's formatter.
+- **New optional skill `softhouse-program`**: an unattended driver above the pipeline — `program.json` contexts with dependencies, a gate register with agent-decidable and always-stop classes, a never-halt table, an exit/resume protocol with a repo-tracked LOCK and STOPPED sentinel, and scheduled-fire guidance. Ported from the one project that ran it for ~100 fires, with its costs stated.
+- `softhouse-plan` carries the same schema (`protected`, `promotion`, `review_questions`, `isolation`, `brief`).
+
 ## [2.6] — 2026-09-24
 
 Landed in the repo on 2026-10-01 from the globally installed skill, together with 2.2–2.5 (all written the same day from an audit of a Go payment-platform project). See `docs/field-review-2026-10-01.md` for the measured evidence behind each mechanism.

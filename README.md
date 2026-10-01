@@ -4,10 +4,10 @@
 
 Softhouse turns a one-line requirement into a planned, parallelized, reviewed, and merged change set. It plans a task graph, fans the work out to isolated git-worktree agents, gates new UI behind a human design approval, reviews every branch against a concrete checklist, verifies against your project's UAT definition, merges, and writes down what it learned for the next run.
 
-It ships as three Claude Code skills — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
+It ships as three Claude Code skills plus an optional fourth for unattended multi-run programs — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.6-blue)
+![Version](https://img.shields.io/badge/version-2.7-blue)
 
 ---
 
@@ -40,6 +40,7 @@ That's it. For the full pipeline in one shot, skip the plan step and run `/softh
 | [`softhouse`](skills/softhouse/SKILL.md) | `/softhouse <requirement>` | The full 9-step pipeline: plan → design gate → parallel execution → review → UAT → merge → postmortem → cleanup. `/softhouse resume` continues an interrupted run. |
 | [`softhouse-plan`](skills/softhouse-plan/SKILL.md) | `/softhouse-plan <requirement>` | Planning only (steps 0–2). Produces a task graph you can inspect and edit before committing to execution. Never spawns agents or touches source code. |
 | [`softhouse-uat`](skills/softhouse-uat/SKILL.md) | `/softhouse-uat [suite]` | Runs your project's UAT suite, resolved from `.softhouse/uat.md` with sensible fallbacks. |
+| [`softhouse-program`](skills/softhouse-program/SKILL.md) | `/softhouse-program` | Optional. Drives a program of bounded contexts unattended, one context per invocation, parking blocked work and recording human decisions in a gate register. For long, well-specified migrations with a mechanical oracle. |
 
 ## Why this exists
 
@@ -71,19 +72,24 @@ STEP 2  Plan            build the task graph; route each task by executor; every
                         show it as a table; WAIT for your approval
 STEP 3  Execute         push main, then fan out worktree agents by dependency level with a
                         fixed, cache-friendly prompt (safety → worker-context digest → role →
-                        task); workers stop-and-report at a scope boundary
+                        task) persisted under briefs/; workers stop-and-report at a scope
+                        boundary; crashed agents are recovered from the tree, never re-spawned
+                        blindly; shared-sequential mode for repos where worktrees don't work
 STEP 5  Review          scope check, fork-freshness check, non-negotiables scan, the
                         orchestrator EXECUTES the acceptance line and stores evidence,
-                        blind independent review for protected/security diffs, CX score
+                        blind independent review for protected/security diffs that verifies
+                        the worker's review answers, CX score
                         → APPROVED / MICRO-FIX / REJECTED (one retry, prompt must change)
    5b   Design gate     publish mockup → you approve/revise/skip → inject into coder task
-  5.5   UAT             per-project, from .softhouse/uat.md; must PASS to complete
+  5.5   UAT             per-project, from .softhouse/uat.md; must PASS to complete;
+                        promotion: "test" work stops at TEST behind a user decision
 STEP 6  Merge           --no-ff in dependency order, batched integration tests, push per batch
   6.5   DesignSync      best-effort component-library sync (skippable, never a gate)
 STEP 7  Integration     wiring census may not have risen; full suite on merged main
-STEP 8  PostMortem      append lessons to patterns.md + one machine-readable line to metrics.jsonl
-STEP 9  Cleanup         sync worker-context digest, append handoff-index, archive run,
-                        reset state, prune worktrees/branches, final push
+STEP 8  PostMortem      postmortem to patterns-archive.md; promote ≤3 rules to patterns.md,
+                        each naming its enforcing check; one line to metrics.jsonl
+STEP 9  Cleanup         patterns.md ≤150 lines or the run does not complete; sync digest,
+                        append handoff-index, archive run, reset state, prune, final push
 ```
 
 ## Per-project state
@@ -93,8 +99,9 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
 ```
 .softhouse/
   tasks.json           # current run state; idle between runs
-  patterns.md          # learned patterns + HARD GATES; keep it short
-  patterns-archive.md  # older postmortems — still binding, read by STEP 0
+  patterns.md          # HARD GATES + constraints + promoted rules; capped at 150 lines
+  patterns-archive.md  # every postmortem; grepped by STEP 0, never read whole
+  briefs/<run_id>/     # the assembled prompt per task, plus brief.md when tasks share a spec
   metrics.jsonl        # one JSON line per run; drives the escalation rule
   worker-context.md    # ≤200-line digest workers read instead of CLAUDE.md (see templates/)
   protected-paths.txt  # globs that force the independent review (see templates/)
@@ -109,9 +116,12 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
     tokens.html        # token preview
     components/        # reusable component previews (@dsCard annotated)
     mockups/           # per-task screen mockups
+    specs/             # designer handoffs, copied here so they survive handoff rotation
+  program.json         # only with softhouse-program: contexts, gates, history
+  gates.md             # only with softhouse-program: the human-decision register
 ```
 
-Starter templates for `patterns.md`, `uat.md`, `worker-context.md`, `protected-paths.txt`, and `design/design.md` are in [`templates/`](templates/). The helper scripts the skill calls (`wiring-census.sh`, `protected-paths-touched.sh`, `handoff-index-append.sh`) are in [`scripts/`](scripts/) and belong under `scripts/ci/` in your project:
+Starter templates for `patterns.md`, `uat.md`, `worker-context.md`, `protected-paths.txt`, `brief.md`, and `design/design.md` are in [`templates/`](templates/). The helper scripts the skill calls (`wiring-census.sh`, `protected-paths-touched.sh`, `handoff-index-append.sh`) are in [`scripts/`](scripts/) and belong under `scripts/ci/` in your project:
 
 ```bash
 mkdir -p .softhouse scripts/ci
@@ -131,6 +141,8 @@ Softhouse is deliberately project-agnostic; it reads your conventions rather tha
 - **Test stack command** — the safety preamble's isolated-verification command is a docker-compose example. Adapt it to your harness; the requirement is that it's *isolated and uniquely named*, not that it's Docker.
 - **Model routing** — roles default to Sonnet, with Haiku for trivial mechanical tasks (never on a protected path) and Opus for tasks whose failure is silent: security, tenancy, crypto, money state machines, cross-package refactors, and any retry. The model is not the quality lever; the executed acceptance line and the independent review are.
 - **`.softhouse/worker-context.md`** — the digest workers actually read. Keep it under 200 lines and in sync with CLAUDE.md; the pipeline reminds you at cleanup.
+- **Isolation mode** — worktrees by default. If your repo makes a fresh worktree expensive (hoisted monorepo installs), say so in `patterns.md` and the plan uses `shared-sequential`: one agent at a time in the shared tree, the orchestrator re-running the gate before each commit.
+- **Promotion** — if you have a TEST environment distinct from production, declare it in `patterns.md`; tasks marked `promotion: "test"` stop there and production is your call.
 
 ## Requirements
 

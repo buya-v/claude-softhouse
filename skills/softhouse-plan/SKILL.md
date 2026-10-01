@@ -3,11 +3,11 @@ name: softhouse-plan
 description: Planning-only phase of the Softhouse pipeline — breaks a requirement into a reviewable task graph with executor routing, dependencies, and model assignments, writes it to .softhouse/tasks.json, and stops. Never spawns worker agents or modifies source code. Use when the user runs /softhouse-plan or wants to review a pipeline plan before executing it with /softhouse resume.
 ---
 
-# /softhouse-plan — Plan Only (No Execution) (v2.6)
+# /softhouse-plan — Plan Only (No Execution) (v2.7)
 
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
-Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.6) — a plan written here must execute unmodified under `/softhouse resume`.
+Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.7) — a plan written here must execute unmodified under `/softhouse resume`.
 
 ## Usage
 - `/softhouse-plan <requirement>` — Generate a task plan
@@ -17,12 +17,13 @@ Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.6) — a plan written 
 ### STEP 0 — Pre-flight
 1. Run `git status` — abort if working tree is dirty.
 2. Read `CLAUDE.md` (or project context file) if it exists.
-3. Read `.softhouse/patterns.md` AND `.softhouse/patterns-archive.md` (if present) for learned patterns. Archived lessons are still binding. Any `HARD GATES` section is acceptance rules, not advice.
+3. Read `.softhouse/patterns.md` in full (capped at 150 lines; `HARD GATES` are acceptance rules, not advice), then grep `.softhouse/patterns-archive.md` (if present) for the files, symbols and tags this requirement touches. Archived lessons are still binding; do not read the archive whole.
 3b. Read `.softhouse/metrics.jsonl` (last 5 lines). **Escalation rule:** if any `failure_tags` value appears in 2 or more of the last 3 runs, change the approach for that task type in this plan and state in the plan summary which tag fired and what changed. A stronger model alone is not a change. Create the file empty if missing.
 3c. If 3 or more runs carry token data, apply the **model-efficiency rule** (`/softhouse` STEP 8): a role on which opus does not beat sonnet on first-attempt rate defaults to sonnet, and the plan summary says so.
 4. Read `.softhouse/tasks.json` — check current state. If a run is already IN PROGRESS (any task `in_progress`), warn the user. If the previous run is terminal (all tasks done/approved/deferred/cancelled), it is safe to replace — archive it to `.softhouse/runs/` first if not already there.
 5. Read the most recent `.softhouse/runs/*.json` archive and pull its `backlog` array into planning input.
-6. Identify the environment-safety facts (live deployment? which compose project? isolated test command?) — they determine `executor` routing.
+6. Identify the environment-safety facts (live deployment? which compose project? isolated test command? a TEST environment distinct from production?) — they determine `executor` routing and the `promotion` field. Decide the run's `isolation` mode: `"worktree"` by default, `"shared-sequential"` only when CLAUDE.md/patterns.md say worktrees are impractical for this repo.
+6b. **Scout before planning:** grep for an existing rudimentary version of what is asked; scope the plan to the gap, not the whole epic.
 7. If `.softhouse/queue/*.json` exists and `tasks.json` is idle, tell the user which plans are queued; a new plan written now may be queued instead of replacing `tasks.json` if the user prefers (`git mv` it under `.softhouse/queue/<run_id>.json`).
 8. If `.softhouse/protected-paths.txt` exists, read it: any task whose `files_hint` matches a protected path gets `"protected": true`, may not be `"haiku"`, and counts as security for metrics.
 9. If the project has `scripts/ci/wiring-census.sh`, run `--check` and note the count; the plan must not add library code without a call-site task.
@@ -47,9 +48,13 @@ Each task object:
   "dependencies": [],
   "status": "pending",
   "attempts": 0,
-  "note": ""
+  "note": "",
+  "protected": false,
+  "promotion": "prod",
+  "review_questions": []
 }
 ```
+Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of_scope`.
 
 **Planning rules:**
 - `agent_role`: `"coder"`, `"test_writer"`, `"designer"` (HTML mockups + design spec BEFORE code), or `"cx_reviewer"`
@@ -71,7 +76,12 @@ Each task object:
 - **Derive `files_hint` from the acceptance line, not from memory.** For every deletion, rename or consolidation task, run the task's `Done when:` grep (and `grep -rln '<symbol>'` across the repo, including tests, mocks and adapters) against current main NOW and put every file it hits into `files_hint`. For an interface change also list its adapters. If the grep hits a file another task owns, serialize or split.
 - **Every task `description` MUST end with a line starting `Done when:`** that names at least one runnable command and its expected result (exit code, grep count, HTTP status, coverage number). "build passes" alone is not acceptable. The reviewer executes this line verbatim in `/softhouse` STEP 5. A plan with a task lacking one is invalid — fix it before showing the plan.
 - Run each `Done when:` line now against current main and record its red result in the description (e.g. `Planning-time result (red): grep → 0`). A line that cannot run at fork time cannot be satisfied by a worker; mark stack-dependent assertions with an `orchestrator:` prefix so the worker skips them honestly.
-- Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e.
+- Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e. **Every protected task carries 3–6 `review_questions`** the reviewer will ask ("where is the tenant checked before the query?"); the worker answers each with `file:line` in its handoff.
+- Every description's first line is `SCOPE SELF-CHECK (run first):` plus the one command that proves the listed files are the right ones.
+- **Brief:** when 3 or more tasks share a spec, value table, rename map or security list, write it once to `.softhouse/briefs/{run_id}/brief.md` (template: `templates/brief.md` in the Softhouse repo), set top-level `"brief"` to that path, commit it with the plan, and keep task descriptions to their delta.
+- Scale check: split a task that spans several whole large files or documents. Keep dependency installs in ONE task per run.
+- Apply/ratify/deploy tasks depend on the producing task reaching `approved`, not `done`.
+- **`promotion`:** `"test"` on any task whose surface is child-facing, money-moving, outward-facing or a visible redesign — the run stops at the TEST environment and production promotion becomes an `executor: "user"` decision in `/softhouse` STEP 5.5.
 - `model` defaults: coder/test_writer/cx_reviewer → `"sonnet"`; `"haiku"` for trivial tasks (never on a protected task); `"opus"` for tasks whose failure is SILENT — code that compiles and passes tests while being wrong (security, tenancy, crypto, payment or settlement state machines, cross-package refactors). Loud-failure tasks stay on sonnet even when large; the executed acceptance line is the quality lever, not the model tier.
 - **Token budget:** set a top-level `budget_tokens` from `metrics.jsonl` (`sum of tokens_per_approved_task[model]` + protected tasks × measured review cost, × 1.3 for retries). First run with no data: 250k per sonnet task, 500k per opus task (≈400k per protected opus task including its review), 60k per haiku task. It is a pacing guard — `/softhouse` stops and asks at 80%.
 
@@ -83,15 +93,17 @@ Each task object:
      "feature": "<short feature name>",
      "requirement": "<full requirement text>",
      "status": "planning",
+     "isolation": "worktree",
      "budget_tokens": 0,
+     "brief": null,
      "backlog": [],
      "tasks": [...]
    }
    ```
 2. Display the task graph table (and, in the summary under it, which escalation tags fired and what changed, and the budget):
    ```
-   | ID | Title | Role | Executor | Model | Target | Deps | Files | Protected |
-   |----|-------|------|----------|-------|--------|------|-------|-----------|
+   | ID | Title | Role | Executor | Model | Target | Deps | Files | Protected | Promotion |
+   |----|-------|------|----------|-------|--------|------|-------|-----------|-----------|
    ```
 3. Show the dependency/parallelism structure visually, and call out which tasks are orchestrator/user-executed (they gate live-system windows)
 4. Commit AND push: `git add .softhouse/tasks.json && git commit -m "softhouse: plan — <feature>" && git push`

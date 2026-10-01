@@ -14,16 +14,19 @@ Also welcome: project templates for stacks not yet covered, clearer wording wher
 
 ```
 skills/
-  softhouse/SKILL.md        # the full pipeline (steps 0–9)
-  softhouse-plan/SKILL.md   # planning only (steps 0–2)
-  softhouse-uat/SKILL.md    # UAT execution
-templates/                  # starter files for a consuming project's .softhouse/
-install.sh                  # copies skills/* into ~/.claude/skills/
+  softhouse/SKILL.md          # the full pipeline (steps 0–9)
+  softhouse-plan/SKILL.md     # planning only (steps 0–2)
+  softhouse-uat/SKILL.md      # UAT execution
+  softhouse-program/SKILL.md  # optional unattended multi-run driver
+templates/                    # starter files for a consuming project's .softhouse/
+scripts/                      # helper scripts a consuming project installs under scripts/ci/
+docs/                         # field reviews and design notes behind the rules
+install.sh                    # copies skills/* into ~/.claude/skills/
 ```
 
 ## Rules for editing skills
 
-**Keep the plan schema synchronized.** `softhouse` STEP 2 and `softhouse-plan` STEP 2 define the same task-object schema and the same planning rules. A plan produced by `softhouse-plan` must execute unmodified under `/softhouse resume`. If you change the schema in one, change it in both, and check that the field is actually consumed somewhere downstream.
+**Keep the plan schema synchronized.** `softhouse` STEP 2 and `softhouse-plan` STEP 2 define the same task-object schema and the same planning rules (`softhouse-program` consumes that schema too). A plan produced by `softhouse-plan` must execute unmodified under `/softhouse resume`. If you change the schema in one, change it in both, and check that the field is actually consumed somewhere downstream.
 
 **Never weaken the safety boundaries.** Three things are load-bearing and a PR that erodes them will be declined:
 
@@ -36,6 +39,8 @@ If your change makes one of these more permissive, the PR needs to explain what 
 **Write for a model, not a human skimmer.** Prefer explicit imperatives over implication. State the failure mode inline where the rule appears — a model following step 5 shouldn't have to remember why step 3 mattered. Concrete commands beat descriptions of commands. Where a rule has an exception, spell the exception out; a model will otherwise invent one.
 
 **Keep it project-agnostic.** No hardcoded hostnames, project names, credentials, or paths from your own infrastructure. Anything site-specific belongs in the consuming project's `CLAUDE.md` or `.softhouse/`, and the skill should read it from there. Examples are fine; examples wearing a real production hostname are not.
+
+**A rule must name its gate.** A new rule in a SKILL.md should say which step checks it and how (a grep, a script, an executed command, a tag). The field review found that rules recorded as prose recurred up to fourteen times; rules that became checks stopped recurring.
 
 **Version material changes.** New stages, schema changes, or new safety rules bump the version and get an entry in [CHANGELOG.md](CHANGELOG.md) plus the version note at the top of the affected `SKILL.md`. Wording and clarity fixes don't need a bump.
 
