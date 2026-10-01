@@ -2,6 +2,44 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.6] — 2026-09-24
+
+Landed in the repo on 2026-10-01 from the globally installed skill, together with 2.2–2.5 (all written the same day from an audit of a Go payment-platform project). See `docs/field-review-2026-10-01.md` for the measured evidence behind each mechanism.
+
+- `files_hint` is derived from the task's acceptance grep at planning time, including tests, mocks and adapters; workers that need a file outside it **stop and report** instead of widening their own scope, and the orchestrator widens the list and resumes them.
+- Acceptance logs run under `pipefail`, capture exit codes before any `| tail`, compare diffs against `git merge-base`, and pass explicit ref names to helper scripts.
+
+## [2.5] — 2026-09-24
+
+Token economy.
+
+- Workers read a ≤200-line `.softhouse/worker-context.md` digest instead of CLAUDE.md and the patterns files; the orchestrator keeps it in sync (STEP 9.0). Template in `templates/worker-context.md`.
+- Fixed worker-prompt layout — safety preamble → worker context → role text → task block — so every agent in a wave shares a cacheable prefix.
+- Workers run scoped verify commands only; the orchestrator runs the full suite per wave. Read-by-range and `| tail -40` discipline; no sub-agents from workers; 40-line handoffs.
+
+## [2.4] — 2026-09-24
+
+- **Wiring census** (`scripts/wiring-census.sh`): the count of library constructors with no call site may never rise within a run; STEP 7 reverts the responsible merge with tag `unwired-library-code`.
+- **Protected paths** (`.softhouse/protected-paths.txt`, `scripts/protected-paths-touched.sh`): any task or diff touching them gets the independent review and may not run on haiku.
+- Per-run `budget_tokens` as a pacing guard: at 80% the orchestrator stops launching workers and asks.
+- Queued plans under `.softhouse/queue/`.
+
+## [2.3] — 2026-09-24
+
+- **Independent review** for money and security diffs: a separate opus agent sees only the acceptance line, the diff and the security requirements — never the handoff — and its FAIL is a rejection. The planner and the orchestrator are the same session and would otherwise review their own plan.
+- A retry must change the prompt (exact signatures, narrower scope, a split, or an explicit prohibition), not only the model.
+- Opus is reserved for tasks whose failure is silent; loud-failure tasks stay on sonnet. The orchestrator always runs on the strongest model.
+
+## [2.2] — 2026-09-24
+
+Closes the learning loop. Rationale: the same lesson was recorded three times in one project and recurred each time, because lessons were prose read by a planner rather than gates checked by a reviewer.
+
+- STEP 0 reads `patterns-archive.md` and `metrics.jsonl` and applies the **escalation rule**: a failure tag seen in 2 of the last 3 runs forces a changed approach, stated in the plan summary.
+- Every task description ends with a runnable `Done when:` line.
+- STEP 5 **executes** the acceptance line and stores the output under `.softhouse/uat-evidence/`; no evidence, no approval. It also rejects on the handoff's own "not done" list and enforces test-scope diffs for test writers.
+- STEP 8 appends a machine-readable line to `metrics.jsonl` with tagged failures and tokens by model; a model-efficiency rule feeds back into planning.
+- STEP 9 appends to `handoff-index.tsv`, the planner's grep-able "similar past tasks" lookup (`scripts/handoff-index-append.sh`).
+
 ## [2.1] — 2026-07-02
 
 Added the **design stage** — design now happens before code, not after.

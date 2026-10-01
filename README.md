@@ -7,7 +7,7 @@ Softhouse turns a one-line requirement into a planned, parallelized, reviewed, a
 It ships as three Claude Code skills — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.1-blue)
+![Version](https://img.shields.io/badge/version-2.6-blue)
 
 ---
 
@@ -62,21 +62,28 @@ Handing a large requirement to a single agent produces one long serial session w
 ## How a run flows
 
 ```
-STEP 0  Pre-flight      clean tree check; read CLAUDE.md, patterns.md, prior backlog;
-                        identify environment-safety facts for this host
-STEP 2  Plan            build the task graph; route each task by executor;
+STEP 0  Pre-flight      clean tree check; read CLAUDE.md, patterns.md (+archive), prior backlog,
+                        metrics.jsonl (escalation rule: a failure tag seen in 2 of the last 3
+                        runs forces a changed approach); protected paths; wiring census;
+                        token budget; environment-safety facts for this host
+STEP 2  Plan            build the task graph; route each task by executor; every task ends
+                        with a runnable "Done when:"; files_hint derived from that grep;
                         show it as a table; WAIT for your approval
-STEP 3  Execute         push main, then fan out worktree agents by dependency level;
-                        orchestrator tasks run inline in parallel
-STEP 5  Review          scope check, fork-freshness check, non-negotiables scan,
-                        CX score → APPROVED / MICRO-FIX / REJECTED (one retry, model upgraded)
+STEP 3  Execute         push main, then fan out worktree agents by dependency level with a
+                        fixed, cache-friendly prompt (safety → worker-context digest → role →
+                        task); workers stop-and-report at a scope boundary
+STEP 5  Review          scope check, fork-freshness check, non-negotiables scan, the
+                        orchestrator EXECUTES the acceptance line and stores evidence,
+                        blind independent review for protected/security diffs, CX score
+                        → APPROVED / MICRO-FIX / REJECTED (one retry, prompt must change)
    5b   Design gate     publish mockup → you approve/revise/skip → inject into coder task
   5.5   UAT             per-project, from .softhouse/uat.md; must PASS to complete
 STEP 6  Merge           --no-ff in dependency order, batched integration tests, push per batch
   6.5   DesignSync      best-effort component-library sync (skippable, never a gate)
-STEP 7  Integration     full suite on merged main, clean state
-STEP 8  PostMortem      append lessons to patterns.md
-STEP 9  Cleanup         archive run, reset state, prune worktrees/branches, final push
+STEP 7  Integration     wiring census may not have risen; full suite on merged main
+STEP 8  PostMortem      append lessons to patterns.md + one machine-readable line to metrics.jsonl
+STEP 9  Cleanup         sync worker-context digest, append handoff-index, archive run,
+                        reset state, prune worktrees/branches, final push
 ```
 
 ## Per-project state
@@ -86,10 +93,17 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
 ```
 .softhouse/
   tasks.json           # current run state; idle between runs
-  patterns.md          # learned patterns, appended by each postmortem
+  patterns.md          # learned patterns + HARD GATES; keep it short
+  patterns-archive.md  # older postmortems — still binding, read by STEP 0
+  metrics.jsonl        # one JSON line per run; drives the escalation rule
+  worker-context.md    # ≤200-line digest workers read instead of CLAUDE.md (see templates/)
+  protected-paths.txt  # globs that force the independent review (see templates/)
+  handoff-index.tsv    # one row per past task; the planner greps it for similar work
   uat.md               # your project's UAT definition (see templates/)
-  handoff/<run_id>/    # worker handoff files, namespaced per run
+  handoff/<run_id>/    # worker handoff files, namespaced per run — COMMIT these
+  uat-evidence/<run_id>/ # acceptance logs ending RESULT: PASS|FAIL — COMMIT these
   runs/<run_id>.json   # archived runs — carries the backlog forward
+  queue/               # plans waiting to run
   design/
     design.md          # design rules + which claude.ai design project to sync to
     tokens.html        # token preview
@@ -97,13 +111,15 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
     mockups/           # per-task screen mockups
 ```
 
-Starter templates for `patterns.md`, `uat.md`, and `design/design.md` are in [`templates/`](templates/). Copy the ones you need:
+Starter templates for `patterns.md`, `uat.md`, `worker-context.md`, `protected-paths.txt`, and `design/design.md` are in [`templates/`](templates/). The helper scripts the skill calls (`wiring-census.sh`, `protected-paths-touched.sh`, `handoff-index-append.sh`) are in [`scripts/`](scripts/) and belong under `scripts/ci/` in your project:
 
 ```bash
-mkdir -p .softhouse && cp path/to/claude-softhouse/templates/* .softhouse/
+mkdir -p .softhouse scripts/ci
+cp path/to/claude-softhouse/templates/* .softhouse/
+cp path/to/claude-softhouse/scripts/*.sh scripts/ci/
 ```
 
-Only `patterns.md`, `uat.md`, and `design/` are worth committing in your project — the rest is run state.
+Commit all of `.softhouse/`. Handoffs, run archives, evidence logs, metrics and the handoff index are what the next run learns from; a project that kept handoffs out of git lost two tasks' output when their worktrees were pruned.
 
 ## Adapting it to your project
 
@@ -113,7 +129,8 @@ Softhouse is deliberately project-agnostic; it reads your conventions rather tha
 - **`.softhouse/uat.md`** — how to verify against a real system. Without it, `softhouse-uat` falls back to a generic isolated-suite + health-check + page-fetch check and tells you to write one.
 - **`target` values** — the area labels in the task graph (`backend`, `frontend`, `api`, `ops`, `ci`, …). Rename them to match how your project is actually divided.
 - **Test stack command** — the safety preamble's isolated-verification command is a docker-compose example. Adapt it to your harness; the requirement is that it's *isolated and uniquely named*, not that it's Docker.
-- **Model routing** — roles default to Sonnet, with Haiku for trivial mechanical tasks and Opus for architecture, security, intricate refactors, and any retry.
+- **Model routing** — roles default to Sonnet, with Haiku for trivial mechanical tasks (never on a protected path) and Opus for tasks whose failure is silent: security, tenancy, crypto, money state machines, cross-package refactors, and any retry. The model is not the quality lever; the executed acceptance line and the independent review are.
+- **`.softhouse/worker-context.md`** — the digest workers actually read. Keep it under 200 lines and in sync with CLAUDE.md; the pipeline reminds you at cleanup.
 
 ## Requirements
 

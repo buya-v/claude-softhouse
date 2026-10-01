@@ -1,0 +1,17 @@
+# Protected paths — Softhouse reads this at planning (STEP 0 4d / STEP 2) and review (STEP 5 4e).
+# Test files never match (test-only diffs get the test-scope gate instead).
+# A task whose files_hint or diff touches any of these:
+#   - MUST get the independent review (SKILL STEP 5 4e) before approval
+#   - may NOT be assigned model "haiku"
+#   - is target "security" for metrics purposes even if labelled otherwise
+# One glob per line; # comments allowed. `**` crosses directories, `*` stays in a segment.
+# Matched against `git diff --name-only <base>..<branch>` by scripts/ci/protected-paths-touched.sh.
+#
+# Typical entries — replace with your project's real paths:
+# <auth middleware>
+# <session / token / credential code>
+# <crypto, HSM, key management>
+# <money: payment, settlement, ledger, pricing, refund state machines>
+# <tenancy / row-level-security helpers>
+# <migrations/**>
+# <production compose / deployment config>
