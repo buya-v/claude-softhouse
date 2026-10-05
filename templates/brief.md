@@ -31,7 +31,7 @@ task that applies it>
 <the security / money / correctness properties the independent reviewer will probe, as
 questions. Workers answer them in `## Review answers` with file:line>
 
-1.
+1. <for every handler task: which route and which auth reach this handler, and which test proves it?>
 2.
 3.
 
@@ -48,3 +48,4 @@ questions. Workers answer them in `## Review answers` with file:line>
 - `[VERIFIED: …]` / `[UNVERIFIED]` on every material claim
 - Blockers / Not done — binding; anything here that overlaps the acceptance line means
   the task is not done
+- Wiring for the orchestrator — exact lines for shared files the worker may not edit

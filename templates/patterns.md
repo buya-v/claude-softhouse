@@ -16,6 +16,8 @@ rejected. Number them so acceptance logs can cite "gate 3".
 2. <e.g. Test-writer diffs contain only test files, `tests/helpers/`, and the coverage baseline.>
 3. <e.g. No simulated fallback outside the `SIMULATOR_MODE` flag.>
 4. <e.g. Never widen a role gate in `app/deps.py` to satisfy a test.>
+5. <e.g. Stack suites count only against a binary built from the merged tree: `docker compose up -d --build`, then `docker exec <svc> grep -a -c <run-unique string> <binary>` ≥ 1 before any suite is recorded.>
+6. <e.g. Orchestrator-owned shared files (`cmd/*/main.go`, bootstrap, routes, config, compose) are wired on the branch BEFORE the independent review.>
 
 ## Project constraints
 

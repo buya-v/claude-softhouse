@@ -90,6 +90,9 @@ project has one, so workers do not assume unreachable code is live.>
 9. Protected paths (`.softhouse/protected-paths.txt`) get an independent review; expect it.
    If the task carries REVIEW QUESTIONS, answer each with `file:line` in the handoff.
 10. Do not restructure or split files beyond the task.
+11. Orchestrator-owned shared files (<entry points, bootstrap, routes, config registration,
+    compose — list them>) are never edited by a worker. Put the exact lines the orchestrator
+    must add under `## Wiring for the orchestrator` in your handoff; it wires them before review.
 
 ## Handoff (max 40 lines per attempt, at `.softhouse/handoff/{run_id}/{task.id}.md`)
 ```
@@ -98,6 +101,7 @@ project has one, so workers do not assume unreachable code is live.>
 ## Acceptance (paste the Done when command and its last lines of output)
 ## Decisions (only non-obvious ones)
 ## Review answers (protected tasks: each REVIEW QUESTION → file:line)
+## Wiring for the orchestrator (exact lines for the shared files you may not edit)
 ## Blockers / Not done (be exact; this list is binding)
 ## Tokens   (from your final usage line, if visible)
 ```

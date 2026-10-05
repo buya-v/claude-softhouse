@@ -31,6 +31,7 @@ Resolve the UAT definition for the current working directory, in this order:
 
 ### 1. Pre-flight
 - Run the project's declared pre-flight checks (or fallback: `curl -sf <health-url>`).
+- **Binary proof:** when the suite is meant to verify a change, confirm the running system contains it before running anything — rebuild with an explicit `--build`, then grep the container's binary or bundle for a string unique to the change (or compare the image's build label to the commit). Record the proof at the top of the report. A green suite against a stale image is the most expensive false positive this skill can produce.
 - If any fail: warn the user and ask whether to start/deploy services first. Do NOT deploy anything yourself unless the project config explicitly sanctions it — deploys to live systems are orchestrator actions and may need a user-scheduled window.
 
 ### 2. Run Tests

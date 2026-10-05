@@ -2,6 +2,17 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.8] — 2026-10-05
+
+From the first full run under 2.7: nine tasks on a Go payment platform, 16 blind reviews with 7 real FAILs, and five more defects that only live UAT found. Each item below is a gate for one of those five, or for a review failure the pipeline itself caused.
+
+- **Binary proof** before any stack suite is recorded (STEP 5.5 and `softhouse-uat`): explicit `--build`, then grep the running binary or bundle for a run-unique string. Every suite in that run first passed against the pre-merge image because the project's `make dev-up` omitted `--build`.
+- **Wire before review** (STEP 3.3): orchestrator-owned shared files are wired on the worker's branch, built and committed before the independent reviewer is spawned. Workers hand the exact lines over under `## Wiring for the orchestrator` (worker-context template, hard gate 11; brief template).
+- **Reachability acceptance** (STEP 2): a task that makes something reachable carries an `orchestrator:` live probe through the real route with the real auth; handler tasks always get the review question *which route and which auth reach this handler, and which test proves it?*
+- **Micro-fix means mechanical** (STEP 5.6): error mapping, TTL rules, auth lists, YAML folded scalars and return-value changes are logic at any line count — worker with a test, or orchestrator edit plus delta review.
+- **Handler layer in `files_hint`** (STEP 2, `softhouse-plan`): a service-behaviour change lists the handler that maps its errors.
+- Worktree fallback when the session cwd is not the project repo (STEP 3.2); `timeout` fallback for macOS (Error Handling).
+
 ## [2.7] — 2026-10-01
 
 From a field review of every Softhouse pipeline run under one home directory: nine projects, four independent forks, seven months (`docs/field-review-2026-10-01.md`). The common root cause of every recurring failure was that lessons stayed prose; 2.7 makes the learning loop structural and ports the forks' proven mechanisms.

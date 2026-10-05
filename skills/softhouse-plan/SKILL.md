@@ -3,11 +3,11 @@ name: softhouse-plan
 description: Planning-only phase of the Softhouse pipeline — breaks a requirement into a reviewable task graph with executor routing, dependencies, and model assignments, writes it to .softhouse/tasks.json, and stops. Never spawns worker agents or modifies source code. Use when the user runs /softhouse-plan or wants to review a pipeline plan before executing it with /softhouse resume.
 ---
 
-# /softhouse-plan — Plan Only (No Execution) (v2.7)
+# /softhouse-plan — Plan Only (No Execution) (v2.8)
 
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
-Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.7) — a plan written here must execute unmodified under `/softhouse resume`.
+Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.8) — a plan written here must execute unmodified under `/softhouse resume`.
 
 ## Usage
 - `/softhouse-plan <requirement>` — Generate a task plan
@@ -73,10 +73,10 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
 - UI tasks: include the CX checklist (applicable subset for the project's UI paradigm; N/A items need justification); add a `cx_reviewer` task for user-facing pages
 - Apply constraints from `.softhouse/patterns.md` and `.softhouse/patterns-archive.md`
 - **Look up similar past tasks first:** `grep -i '<file or keyword>' .softhouse/handoff-index.tsv` (if present). A hit with a non-empty `failure_tags` column means the previous approach failed; the new task description must state what is different.
-- **Derive `files_hint` from the acceptance line, not from memory.** For every deletion, rename or consolidation task, run the task's `Done when:` grep (and `grep -rln '<symbol>'` across the repo, including tests, mocks and adapters) against current main NOW and put every file it hits into `files_hint`. For an interface change also list its adapters. If the grep hits a file another task owns, serialize or split.
+- **Derive `files_hint` from the acceptance line, not from memory.** For every deletion, rename or consolidation task, run the task's `Done when:` grep (and `grep -rln '<symbol>'` across the repo, including tests, mocks and adapters) against current main NOW and put every file it hits into `files_hint`. For an interface change also list its adapters; for a service-behaviour change, the handler that maps its errors to status codes. If the grep hits a file another task owns, serialize or split.
 - **Every task `description` MUST end with a line starting `Done when:`** that names at least one runnable command and its expected result (exit code, grep count, HTTP status, coverage number). "build passes" alone is not acceptable. The reviewer executes this line verbatim in `/softhouse` STEP 5. A plan with a task lacking one is invalid — fix it before showing the plan.
-- Run each `Done when:` line now against current main and record its red result in the description (e.g. `Planning-time result (red): grep → 0`). A line that cannot run at fork time cannot be satisfied by a worker; mark stack-dependent assertions with an `orchestrator:` prefix so the worker skips them honestly.
-- Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e. **Every protected task carries 3–6 `review_questions`** the reviewer will ask ("where is the tenant checked before the query?"); the worker answers each with `file:line` in its handoff.
+- Run each `Done when:` line now against current main and record its red result in the description (e.g. `Planning-time result (red): grep → 0`). A line that cannot run at fork time cannot be satisfied by a worker; mark stack-dependent assertions with an `orchestrator:` prefix so the worker skips them honestly. A task that makes something reachable (route, guard, middleware) carries an `orchestrator:` live probe through the real route with the real auth and its expected status — unit tests do not prove a route is mounted or that its auth admits the intended caller.
+- Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e. **Every protected task carries 3–6 `review_questions`** the reviewer will ask ("where is the tenant checked before the query?"); the worker answers each with `file:line` in its handoff. Any task that adds or changes a handler always carries "which route and which auth reach this handler, and which test proves it?". If the plan assigns shared files (entry points, bootstrap, routes, config, compose) to the orchestrator, say so in the task and tell the worker to put the exact lines under `## Wiring for the orchestrator` in the handoff.
 - Every description's first line is `SCOPE SELF-CHECK (run first):` plus the one command that proves the listed files are the right ones.
 - **Brief:** when 3 or more tasks share a spec, value table, rename map or security list, write it once to `.softhouse/briefs/{run_id}/brief.md` (template: `templates/brief.md` in the Softhouse repo), set top-level `"brief"` to that path, commit it with the plan, and keep task descriptions to their delta.
 - Scale check: split a task that spans several whole large files or documents. Keep dependency installs in ONE task per run.
