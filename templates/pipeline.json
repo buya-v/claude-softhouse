@@ -1,0 +1,5 @@
+{
+  "pipeline_version": "2.8",
+  "pinned_at": "2026-10-05",
+  "note": "Pins which Softhouse pipeline version this project runs under. Checked in STEP 0 of /softhouse and /softhouse-plan. COMMIT THIS FILE — it is project configuration, not run state. A MAJOR mismatch (schema loss, stage change, safety boundary) stops the run and requires explicit adoption; a MINOR mismatch warns and re-pins automatically."
+}

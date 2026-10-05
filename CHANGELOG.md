@@ -12,6 +12,7 @@ From the first full run under 2.7: nine tasks on a Go payment platform, 16 blind
 - **Micro-fix means mechanical** (STEP 5.6): error mapping, TTL rules, auth lists, YAML folded scalars and return-value changes are logic at any line count — worker with a test, or orchestrator edit plus delta review.
 - **Handler layer in `files_hint`** (STEP 2, `softhouse-plan`): a service-behaviour change lists the handler that maps its errors.
 - Worktree fallback when the session cwd is not the project repo (STEP 3.2); `timeout` fallback for macOS (Error Handling).
+- **Per-project pipeline version pinning**, merged from the repo's origin where it had been published as "2.2" on 2026-07-20 in parallel with the 2.2–2.7 line below: `.softhouse/pipeline.json` (template added) pins the version a project runs under; STEP 0 of `/softhouse` and `/softhouse-plan` checks it (missing → pin; MINOR drift → warn and re-pin; MAJOR drift → stop for explicit adoption; pin newer than the skill → warn and ask); a run in progress is never continued under a different version; `tasks.json` and run archives carry `pipeline_version`. Both skills now carry a `SOFTHOUSE_PIPELINE_VERSION` marker that must be bumped with every change. 2.7 → 2.8 is MINOR.
 
 ## [2.7] — 2026-10-01
 

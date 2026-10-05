@@ -60,6 +60,8 @@ Handing a large requirement to a single agent produces one long serial session w
 
 **Everything is resumable.** All state lives in `.softhouse/tasks.json`. Any interruption — context limit, crash, you closing the laptop — resumes with `/softhouse resume`.
 
+**Each project pins a pipeline version.** Softhouse installs once per machine and is shared by every project on it, so editing it would otherwise change how all of them run at once. Each project commits a `.softhouse/pipeline.json` pin that pre-flight checks: a minor drift warns and re-pins, a major drift (schema loss, stage set, or a safety boundary) stops the run until you adopt it, and a run already in progress is never continued under a different version. Vendoring a copy of the skill into a repo does *not* work as an alternative — Claude Code resolves same-named skills enterprise → personal → project, so a personal skill overrides a project one.
+
 ## How a run flows
 
 ```
@@ -98,6 +100,7 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
 
 ```
 .softhouse/
+  pipeline.json        # pinned pipeline version — commit it
   tasks.json           # current run state; idle between runs
   patterns.md          # HARD GATES + constraints + promoted rules; capped at 150 lines
   patterns-archive.md  # every postmortem; grepped by STEP 0, never read whole

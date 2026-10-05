@@ -5,6 +5,9 @@ description: Multi-agent development pipeline — plans a requirement into a tas
 
 # /softhouse — Multi-Agent Development Pipeline (v2.8)
 
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.8 -->
+**PIPELINE VERSION: `2.8`** — the authoritative version string. Report it in STEP 0, stamp it into `tasks.json`, every run archive and the metrics line, and bump it whenever this file changes (see Versioning).
+
 Orchestrates a 9-step pipeline that plans, executes, reviews, and merges development tasks using parallel worker agents.
 
 v2 changes (2026-07-02, from production build + hardening runs): `executor` routing (agent/orchestrator/user), fork-from-current-main guarantee + merge-base check, mandatory environment-safety preamble in every worker prompt, run-namespaced handoffs, a concrete review checklist + orchestrator micro-fix rule, batched integration testing, project-parameterized UAT, backlog carry-forward, and worktree/branch hygiene in cleanup.
@@ -15,7 +18,7 @@ v2.2 closes the learning loop (2026-09-24, from an audit of a Go payment-platfor
 
 v2.7 (2026-10-01, from a field review of nine projects — see `docs/field-review-2026-10-01.md` in the Softhouse repo): **bounded learning** — `patterns.md` is capped at 150 lines, postmortems go to the archive, and a promoted rule must name the check that enforces it; **review questions** on protected tasks, answered with `file:line` before handoff, so the independent reviewer verifies instead of discovers (first-attempt review passes went from ~0.5 to 2/2 where tried); **planning-time red results** for every `Done when:`; **briefs** — the assembled worker prompt is persisted per task, and runs with a shared spec get a committed brief; **honesty tags** (`[VERIFIED: <source>]` / `[UNVERIFIED]`) on material claims; **agent-failure recovery** (verify the tree, finish the last mile, never re-spawn blindly); a **shared-sequential isolation mode** for repos where worktrees are impractical; a **promotion gate** (`promotion: "test"` stops before production behind a user decision); merge guards after real incidents (assert the current branch before every merge, stage explicit paths while workers are live, `git show` to read a handoff from a branch); and a reviewer-caught-defect tag that no longer counts as an escalation.
 
-v2.8 (2026-10-05, from the first full run under v2.7 — nine tasks on a Go payment platform, 16 blind reviews, 7 real FAILs, then five more defects found only by live UAT): **binary proof** — no stack suite is recorded until the running image is proven to contain the merged tree (`--build` plus a grep for a run-unique string in the binary); every suite in that run first passed against the pre-merge image because the project's `make dev-up` omitted `--build`. **Wire before review** — orchestrator-owned shared files (`main.go`, bootstrap, routes, config, compose) are wired on the worker's branch BEFORE the independent reviewer is spawned; two of seven review failures were "unwired" findings against code the plan had already assigned to the orchestrator. **Reachability acceptance** — every task that makes something reachable carries a live probe through the real route with the real auth in its own `Done when:`, and handler tasks get the standing review question *which route and which auth reach this handler?*; an admin override route shipped HMAC-only and was unreachable by any JWT client until live UAT. **Micro-fix means mechanical** — error-code mapping, TTL rules and YAML inside a folded scalar are logic: a worker fixes them with a test or the orchestrator's edit gets its own delta review; two of five delta-review failures were orchestrator micro-fixes. **Handler layer in `files_hint`** — a service-behaviour change lists the handler that maps its errors (the same planning miss recurred in three runs). Plus the manual-worktree fallback when the session cwd is not the project repo, and a `timeout` fallback for macOS.
+v2.8 (2026-10-05, from the first full run under v2.7 — nine tasks on a Go payment platform, 16 blind reviews, 7 real FAILs, then five more defects found only by live UAT): **binary proof** — no stack suite is recorded until the running image is proven to contain the merged tree (`--build` plus a grep for a run-unique string in the binary); every suite in that run first passed against the pre-merge image because the project's `make dev-up` omitted `--build`. **Wire before review** — orchestrator-owned shared files (`main.go`, bootstrap, routes, config, compose) are wired on the worker's branch BEFORE the independent reviewer is spawned; two of seven review failures were "unwired" findings against code the plan had already assigned to the orchestrator. **Reachability acceptance** — every task that makes something reachable carries a live probe through the real route with the real auth in its own `Done when:`, and handler tasks get the standing review question *which route and which auth reach this handler?*; an admin override route shipped HMAC-only and was unreachable by any JWT client until live UAT. **Micro-fix means mechanical** — error-code mapping, TTL rules and YAML inside a folded scalar are logic: a worker fixes them with a test or the orchestrator's edit gets its own delta review; two of five delta-review failures were orchestrator micro-fixes. **Handler layer in `files_hint`** — a service-behaviour change lists the handler that maps its errors (the same planning miss recurred in three runs). Plus the manual-worktree fallback when the session cwd is not the project repo, and a `timeout` fallback for macOS. 2.8 also folds in **per-project pipeline version pinning** (`.softhouse/pipeline.json`, checked in STEP 0; first published on the repo's origin as "2.2" on 2026-07-20 while the 2.2–2.7 line was developed elsewhere): Softhouse is installed once per host, so without a pin editing the skill silently changes how every project runs.
 
 ## Usage
 - `/softhouse <requirement>` — Plan and execute a full pipeline run
@@ -25,6 +28,7 @@ v2.8 (2026-10-05, from the first full run under v2.7 — nine tasks on a Go paym
 
 ### STEP 0 — Pre-flight
 1. Run `git status` — abort if working tree is dirty (unstaged/uncommitted changes). Warn the user and stop.
+1b. **Pipeline-version check** (see Versioning). Read `.softhouse/pipeline.json`: **missing** → create it pinned at the current version, say so, continue; **equal** → proceed silently; **pinned MAJOR below current** → STOP, report both versions and the CHANGELOG delta, ask `Adopt` / `Abort`, never auto-adopt; **pinned MINOR below current** → warn, list what changed, re-pin, continue; **pinned above current** → a stale or downgraded install: warn loudly and ask, since an old pipeline over new-schema state can corrupt `tasks.json`. A run already in progress (`tasks.json` status not idle) whose `pipeline_version` differs from this skill is NEVER continued under the new version: finish it on the pinned version or abort and re-plan.
 2. Read `CLAUDE.md` (or project context file) if it exists.
 3. Read `.softhouse/patterns.md` in full — it is capped at **150 lines** (STEP 9 enforces the cap) and holds `HARD GATES`, project constraints, environment topology and codebase facts. Any section headed `HARD GATES` is a set of acceptance rules, not advice. Then **grep** `.softhouse/patterns-archive.md` (if present) for the files, symbols, tags and keywords this requirement touches; archived lessons are still binding, archiving only keeps the active file short. Do not read the archive whole — in three long-lived projects it grew past 300 KB and was effectively unread.
 3b. **Read `.softhouse/metrics.jsonl`** (one JSON object per completed run, written in STEP 8). Take the last 5 lines. **Escalation rule:** if any `failure_tags` value appears in 2 or more of the last 3 runs, the planner MUST change the approach for that task type in this plan and state, in the plan summary shown to the user, which tag triggered it and what changed (e.g. `tests-rewrote-source` ×3 → paste exact constructor signatures into every test task + reviewer diff-scope check). Repeating the previous approach with a stronger model does not count as a change. If the file does not exist, create it empty.
@@ -129,6 +133,7 @@ CX ACCEPTANCE CRITERIA (applicable items must pass; N/A items must be justified)
    ```json
    {
      "run_id": "<timestamp-based-id>",
+     "pipeline_version": "<current pipeline version>",
      "feature": "<short feature name>",
      "requirement": "<full requirement text>",
      "status": "planning",
@@ -338,7 +343,7 @@ Rules: `failure_tags` is the union of every task's `failure_tags` this run (dupl
 1. Copy `.softhouse/tasks.json` to `.softhouse/runs/{run_id}.json` (this archive preserves the `backlog`, per-task `failure_tags` and `evidence` paths for the next run's STEP 0). Commit `.softhouse/uat-evidence/{run_id}/`, `.softhouse/briefs/{run_id}/` and `.softhouse/metrics.jsonl` with it. Copy every designer handoff of this run to `.softhouse/design/specs/{task.id}.md` — the design record must survive handoff rotation (one project's approved design spec was overwritten by the next run).
 2. Reset `tasks.json` to idle state:
    ```json
-   { "run_id": null, "feature": null, "requirement": null, "status": "idle", "tasks": [] }
+   { "run_id": null, "pipeline_version": "<current pipeline version>", "feature": null, "requirement": null, "status": "idle", "tasks": [] }
    ```
 3. **Worktree & branch hygiene:** remove this run's agent worktrees (`git worktree remove`, then `git worktree prune`); delete MERGED `softhouse/*` and `worktree-agent-*` branches (`git branch --merged main | ... | xargs git branch -D`). List any UNMERGED ones for the user instead of deleting. Permission-locked worktree dirs from still-live agents are left alone.
 4. Final commit + **push**: `git add .softhouse/ && git commit -m "softhouse: complete — {feature}" && git push`
@@ -352,6 +357,19 @@ Rules: `failure_tags` is the union of every task's `failure_tags` this run (dupl
 - If more than 50% of tasks fail, abort the run and report to user.
 - All state is persisted in `.softhouse/tasks.json` — any interruption can be resumed with `/softhouse resume`.
 - If an `executor: "orchestrator"` step involves an atomic live-system window (secrets + config + restart), NEVER apply it partially: prepare everything, then apply in one window — user-scheduled if disruptive.
+
+## Versioning (why the STEP 0 check exists)
+
+Softhouse is installed **once per host** (`~/.claude/skills/`) and shared by every project on it. Claude Code resolves same-named skills enterprise → personal → project, and personal overrides project, so vendoring a copy into a repo's `.claude/skills/` does NOT shadow the global one. Pinning is therefore done with a version marker the pipeline checks, not by copying the skill.
+
+**`.softhouse/pipeline.json`** — commit it; it is project configuration, not run state (template: `templates/pipeline.json`):
+```json
+{ "pipeline_version": "2.8", "pinned_at": "<ISO date>", "note": "Bumped after adopting <change>. See CHANGELOG." }
+```
+
+**Semantics:** **MAJOR** — the task schema lost or renamed a field, a stage was added/removed/reordered, or a safety boundary moved (executor routing, the worker preamble, isolation rules); existing plans may not execute correctly and adoption is explicit. **MINOR** — new optional fields, wording, checklists, defaults, model routing; adopted automatically with a notice. The 2.x line has only added optional fields, so every 2.x step is MINOR.
+
+**When you change this skill you MUST** bump the version marker at the top, mirror it in `softhouse-plan`, `templates/pipeline.json`, the README badge and the CHANGELOG (stating major or minor), and run `install.sh`. A change that skips the bump is invisible to every project's pre-flight check. Project-specific behaviour never goes in this skill: it belongs in that project's `patterns.md` or CLAUDE.md.
 
 ## Customization Notes
 - Adapt `target` values to match your project's areas

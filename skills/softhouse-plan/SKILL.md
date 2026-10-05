@@ -5,6 +5,9 @@ description: Planning-only phase of the Softhouse pipeline — breaks a requirem
 
 # /softhouse-plan — Plan Only (No Execution) (v2.8)
 
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.8 -->
+**PIPELINE VERSION: `2.8`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
+
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
 Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.8) — a plan written here must execute unmodified under `/softhouse resume`.
@@ -16,6 +19,7 @@ Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.8) — a plan written 
 
 ### STEP 0 — Pre-flight
 1. Run `git status` — abort if working tree is dirty.
+1b. **Pipeline-version check** — read `.softhouse/pipeline.json` and apply the SAME rules as `/softhouse` STEP 0: missing → pin at the current version and say so; major mismatch → stop and ask the user to adopt; minor mismatch → warn, re-pin, continue; pinned newer than the skill → warn and ask. A plan must be written by the same pipeline version that will execute it, or `/softhouse resume` will reject it.
 2. Read `CLAUDE.md` (or project context file) if it exists.
 3. Read `.softhouse/patterns.md` in full (capped at 150 lines; `HARD GATES` are acceptance rules, not advice), then grep `.softhouse/patterns-archive.md` (if present) for the files, symbols and tags this requirement touches. Archived lessons are still binding; do not read the archive whole.
 3b. Read `.softhouse/metrics.jsonl` (last 5 lines). **Escalation rule:** if any `failure_tags` value appears in 2 or more of the last 3 runs, change the approach for that task type in this plan and state in the plan summary which tag fired and what changed. A stronger model alone is not a change. Create the file empty if missing.
@@ -86,10 +90,11 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
 - **Token budget:** set a top-level `budget_tokens` from `metrics.jsonl` (`sum of tokens_per_approved_task[model]` + protected tasks × measured review cost, × 1.3 for retries). First run with no data: 250k per sonnet task, 500k per opus task (≈400k per protected opus task including its review), 60k per haiku task. It is a pacing guard — `/softhouse` stops and asks at 80%.
 
 **After planning:**
-1. Write plan to `.softhouse/tasks.json`:
+1. Write plan to `.softhouse/tasks.json` (`pipeline_version` records which pipeline produced the graph — `/softhouse resume` checks it before executing):
    ```json
    {
      "run_id": "<timestamp-based-id>",
+     "pipeline_version": "<current pipeline version>",
      "feature": "<short feature name>",
      "requirement": "<full requirement text>",
      "status": "planning",
