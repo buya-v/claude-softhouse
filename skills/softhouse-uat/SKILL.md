@@ -35,6 +35,12 @@ Resolve the UAT definition for the current working directory, in this order:
 - **Binary proof:** when the suite is meant to verify a change, confirm the running system contains it before running anything — rebuild with an explicit `--build`, then grep the container's binary or bundle for a string unique to the change (or compare the image's build label to the commit). Record the proof at the top of the report. A green suite against a stale image is the most expensive false positive this skill can produce.
 - If any fail: warn the user and ask whether to start/deploy services first. Do NOT deploy anything yourself unless the project config explicitly sanctions it — deploys to live systems are orchestrator actions and may need a user-scheduled window.
 
+### 1b. Live-check hygiene (v2.9.1)
+- `scripts/ci/uat-setup.sh port-free <port>` for each port the system under test serves on. A busy port means a server this run did not start would answer: stop and report its holder.
+- Python project: `scripts/ci/uat-setup.sh venv` (`.softhouse/uat-venv`, uv first). Never `pip install` into the host python and never `--break-system-packages`; a uv- or Homebrew-managed python refuses it, and a correct change then fails on a missing module.
+- Start anything the suites need with `scripts/ci/uat-setup.sh start '<command>'` (own process group, output to a file: a backgrounded server can neither hang the run nor outlive it). Run suite commands that need the venv with `scripts/ci/uat-setup.sh run '<command>'`.
+- At the end, pass or fail: `scripts/ci/uat-setup.sh stop`, and put its `stopped N …` line in the report.
+
 ### 2. Run Tests
 - No argument (or `all`): run every declared suite.
 - With an argument: run the matching named suite from the project config; if no match, list the available suite names.

@@ -2,6 +2,15 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.9.1] — 2026-10-15
+
+**Live-check hygiene**, from the same Bank of Mongolia service's later softfactory runs (6.4.4, 6.4.5) and its `.pyc` merge halt. MINOR.
+
+- **Python live checks in their own venv** (STEP 5.5, `softhouse-uat`, `templates/uat.md`): `scripts/ci/uat-setup.sh venv` builds `.softhouse/uat-venv` (uv first, else `python3 -m venv` + pip). The host `python3` was uv-managed and refused `pip install`, so a correct build failed on `No module named 'requests'`. Never `pip install` into the host python, never `--break-system-packages`.
+- **Setup servers are stopped and cannot hang the check**: every setup command runs through `uat-setup.sh start` (own process group via perl `setpgrp`, since macOS has no `setsid`; output to a file, never a pipe) and `uat-setup.sh stop` ends what is left, pass or fail: SIGTERM, five seconds, then SIGKILL. A `uvicorn … &` setup with no teardown still held port 8000 three hours after the run, and a backgrounded server that inherits the runner's output pipe blocks the runner until its timeout. `port-free` refuses to start while a stale server could answer the probes with old code.
+- **Environment faults halt without spending a retry** (Error Handling, STEP 6): a merge refused for local changes in the main checkout, a provider quota or outage, a full disk or a missing tool set `status: "halted"` with `halt_reason`, leave `attempts` untouched, and name the fix; `/softhouse resume` continues. New tag `environment-fault`, excluded from the escalation rule.
+- The planned live check writes setup plainly and sets `port`; Softhouse adds the process handling.
+
 ## [2.9] — 2026-10-15
 
 **Grounded runs**, ported from the softfactory CLI (6.4.0–6.4.6). A softfactory run on a Bank of Mongolia rates service planned against `https://www.mongolbank.mn/en/rates`, which answers HTTP 200 with a "404 - Page Not Found" page; workers wrote HTML fixtures from imagination, 127 tests passed against them, there was no live check, and the run reported success. Softhouse had none of the gates that would have caught it. MINOR: every new `tasks.json` field is optional.
