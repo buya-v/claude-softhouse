@@ -2,6 +2,17 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.9] — 2026-10-15
+
+**Grounded runs**, ported from the softfactory CLI (6.4.0–6.4.6). A softfactory run on a Bank of Mongolia rates service planned against `https://www.mongolbank.mn/en/rates`, which answers HTTP 200 with a "404 - Page Not Found" page; workers wrote HTML fixtures from imagination, 127 tests passed against them, there was no live check, and the run reported success. Softhouse had none of the gates that would have caught it. MINOR: every new `tasks.json` field is optional.
+
+- **Source probe** (STEP 2, `softhouse-plan`): the plan lists every outside address the shipped code calls in `external_sources` (url, method, expected shape). Before the plan is shown, `scripts/ci/source-probe.sh` fetches each one: status, a soft 404 in the page's own `<title>`/`<h1>`, the promised shape, and JSON `success: false` or a non-empty `error`. A bad source rejects the plan. URLs that appear only in the requirement are probed as advisory; placeholders (`YYYY-MM-DD`) and duplicates of a listed source are skipped.
+- **The orchestrator owns fixtures** (STEP 2, 3, 5): each good response is committed as `tests/fixtures/sources/<name>.<ext>` before the first wave. No task may declare fixture data for a source (in softfactory a plan that did deadlocked five attempts between "missing declared file" and "invented fixture"); a worker-written one is `REJECTED` by `scripts/ci/fixture-provenance.sh` (tag `invented-fixture`). Coder and test-writer role text and worker-context hard gate 12 say so.
+- **Planned live check** (STEP 2, 5.5, `softhouse-uat`): with no `uat.md` and no CLAUDE.md UAT section, the plan writes a project-specific check into `tasks.json` `uat` (setup that starts the service as a user would, probes through the real routes with an `expect` regex). A probe that only reruns the test suite does not count.
+- **Verified is a separate result** (STEP 5.5, 8, 9): `verified: true|false` in `tasks.json` and `metrics.jsonl`; a run whose checks never touched the running system completes as `COMPLETED — UNVERIFIED`.
+- **Unverified assumptions** (STEP 8, 9): ≤ 15 lines in the postmortem and the final report — URLs in shipped code that no probe covered (new tag `source-not-probed`), a missing live check, `[UNVERIFIED]` claims.
+- New scripts: `source-probe.sh`, `fixture-provenance.sh` (plus `uat-setup.sh`, `swallowed-errors.sh` and `secret-scan.sh`, used from 2.9.1 and 2.10), with `scripts/tests/run.sh`: 62 checks, no network, built on the real Bank of Mongolia response shapes.
+
 ## [2.8] — 2026-10-05
 
 From the first full run under 2.7: nine tasks on a Go payment platform, 16 blind reviews with 7 real FAILs, and five more defects that only live UAT found. Each item below is a gate for one of those five, or for a review failure the pipeline itself caused.

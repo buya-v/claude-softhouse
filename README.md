@@ -7,7 +7,7 @@ Softhouse turns a one-line requirement into a planned, parallelized, reviewed, a
 It ships as three Claude Code skills plus an optional fourth for unattended multi-run programs — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.8-blue)
+![Version](https://img.shields.io/badge/version-2.9-blue)
 
 ---
 
@@ -71,7 +71,9 @@ STEP 0  Pre-flight      clean tree check; read CLAUDE.md, patterns.md (+archive)
                         token budget; environment-safety facts for this host
 STEP 2  Plan            build the task graph; route each task by executor; every task ends
                         with a runnable "Done when:"; files_hint derived from that grep;
-                        show it as a table; WAIT for your approval
+                        probe every outside source the code will call and commit its real
+                        response as the only fixture; plan the live check; show it as a
+                        table; WAIT for your approval
 STEP 3  Execute         push main, then fan out worktree agents by dependency level with a
                         fixed, cache-friendly prompt (safety → worker-context digest → role →
                         task) persisted under briefs/; workers stop-and-report at a scope
@@ -83,8 +85,9 @@ STEP 5  Review          scope check, fork-freshness check, non-negotiables scan,
                         the worker's review answers, CX score
                         → APPROVED / MICRO-FIX / REJECTED (one retry, prompt must change)
    5b   Design gate     publish mockup → you approve/revise/skip → inject into coder task
-  5.5   UAT             per-project, from .softhouse/uat.md; must PASS to complete;
-                        promotion: "test" work stops at TEST behind a user decision
+  5.5   UAT             per-project, from .softhouse/uat.md, else the planned live check;
+                        must PASS to complete; "verified" only if it ran against the
+                        running system; promotion: "test" work stops at TEST
 STEP 6  Merge           --no-ff in dependency order, batched integration tests, push per batch
   6.5   DesignSync      best-effort component-library sync (skippable, never a gate)
 STEP 7  Integration     wiring census may not have risen; full suite on merged main
@@ -92,6 +95,8 @@ STEP 8  PostMortem      postmortem to patterns-archive.md; promote ≤3 rules to
                         each naming its enforcing check; one line to metrics.jsonl
 STEP 9  Cleanup         patterns.md ≤150 lines or the run does not complete; sync digest,
                         append handoff-index, archive run, reset state, prune, final push
+                        report COMPLETED — VERIFIED or — UNVERIFIED, with the assumptions
+                        the run never checked
 ```
 
 ## Per-project state
@@ -124,7 +129,7 @@ Softhouse keeps its state in a `.softhouse/` directory inside the repo you're wo
   gates.md             # only with softhouse-program: the human-decision register
 ```
 
-Starter templates for `patterns.md`, `uat.md`, `worker-context.md`, `protected-paths.txt`, `brief.md`, and `design/design.md` are in [`templates/`](templates/). The helper scripts the skill calls (`wiring-census.sh`, `protected-paths-touched.sh`, `handoff-index-append.sh`) are in [`scripts/`](scripts/) and belong under `scripts/ci/` in your project:
+Starter templates for `patterns.md`, `uat.md`, `worker-context.md`, `protected-paths.txt`, `brief.md`, and `design/design.md` are in [`templates/`](templates/). The helper scripts the skill calls (`wiring-census.sh`, `protected-paths-touched.sh`, `handoff-index-append.sh`, and since 2.9 `source-probe.sh`, `fixture-provenance.sh`, `uat-setup.sh`, `swallowed-errors.sh`, `secret-scan.sh`) are in [`scripts/`](scripts/) and belong under `scripts/ci/` in your project; `scripts/tests/run.sh` tests them without network access:
 
 ```bash
 mkdir -p .softhouse scripts/ci

@@ -21,7 +21,8 @@ Resolve the UAT definition for the current working directory, in this order:
    - **Suites**: named suites with their exact commands
    - **Pass criteria** and where evidence (reports/screenshots) lands
 2. A **"UAT" or "Verification" section** in CLAUDE.md or the project's OPERATIONS doc.
-3. **Generic fallback** (no config found):
+3. **The planned live check** in `.softhouse/tasks.json` `uat` (v2.9, written by the planner when there is no config): run its `setup`, then each probe (output must match its `expect` regex), then its `teardown`. A probe that only reruns the test suite does not count.
+4. **Generic fallback** (no config found):
    - (a) full test suite green in an ISOLATED stack (never the live default compose project)
    - (b) live smoke: health endpoint returns 200 + one end-to-end domain action succeeds (e.g. an authenticated API round-trip with a test credential)
    - (c) for UI changes: fetch the changed pages, assert HTTP 200 and no raw errors ("undefined", "NaN", stack traces) in the HTML
@@ -42,6 +43,7 @@ Resolve the UAT definition for the current working directory, in this order:
 - Pass/fail summary with counts per suite
 - For failures: test name, error message, evidence path (screenshot/report)
 - Overall verdict: **PASS** (all green) or **FAIL** (any red)
+- **Verified or not (v2.9):** say whether anything ran against the RUNNING system (config suites, the planned live check, or fallback b/c). Only fallback (a) — the test suite in isolation — means **UNVERIFIED**: the tests agree with each other, which is not evidence that the feature works. `/softhouse` records this as `verified` in `tasks.json`.
 
 ### 4. Baseline updates (visual suites only)
 If the project declares a visual-regression suite and failures are confirmed INTENTIONAL by the user, run the project's declared update-snapshots command. Never update baselines without explicit user confirmation.

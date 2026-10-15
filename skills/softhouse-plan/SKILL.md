@@ -3,14 +3,14 @@ name: softhouse-plan
 description: Planning-only phase of the Softhouse pipeline — breaks a requirement into a reviewable task graph with executor routing, dependencies, and model assignments, writes it to .softhouse/tasks.json, and stops. Never spawns worker agents or modifies source code. Use when the user runs /softhouse-plan or wants to review a pipeline plan before executing it with /softhouse resume.
 ---
 
-# /softhouse-plan — Plan Only (No Execution) (v2.8)
+# /softhouse-plan — Plan Only (No Execution) (v2.9)
 
-<!-- SOFTHOUSE_PIPELINE_VERSION: 2.8 -->
-**PIPELINE VERSION: `2.8`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.9 -->
+**PIPELINE VERSION: `2.9`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
 
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
-Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.8) — a plan written here must execute unmodified under `/softhouse resume`.
+Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.9) — a plan written here must execute unmodified under `/softhouse resume`.
 
 ## Usage
 - `/softhouse-plan <requirement>` — Generate a task plan
@@ -81,6 +81,7 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
 - **Every task `description` MUST end with a line starting `Done when:`** that names at least one runnable command and its expected result (exit code, grep count, HTTP status, coverage number). "build passes" alone is not acceptable. The reviewer executes this line verbatim in `/softhouse` STEP 5. A plan with a task lacking one is invalid — fix it before showing the plan.
 - Run each `Done when:` line now against current main and record its red result in the description (e.g. `Planning-time result (red): grep → 0`). A line that cannot run at fork time cannot be satisfied by a worker; mark stack-dependent assertions with an `orchestrator:` prefix so the worker skips them honestly. A task that makes something reachable (route, guard, middleware) carries an `orchestrator:` live probe through the real route with the real auth and its expected status — unit tests do not prove a route is mounted or that its auth admits the intended caller.
 - Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e. **Every protected task carries 3–6 `review_questions`** the reviewer will ask ("where is the tenant checked before the query?"); the worker answers each with `file:line` in its handoff. Any task that adds or changes a handler always carries "which route and which auth reach this handler, and which test proves it?". If the plan assigns shared files (entry points, bootstrap, routes, config, compose) to the orchestrator, say so in the task and tell the worker to put the exact lines under `## Wiring for the orchestrator` in the handoff.
+- **External sources, fixtures and the live check (v2.9)** — the same three rules as `/softhouse` STEP 2: list every outside URL the shipped code calls in `external_sources` (exact url, method, expect, purpose; never a guessed address, never a URL that is only test data); never list a fixture file for a source in `files_hint` or ask a worker to save a sample response — the orchestrator commits the real one at `tests/fixtures/sources/<name>.<ext>` and tests build other shapes in code; with no `uat.md` and no CLAUDE.md UAT section, write the planned live check into `uat` (setup that starts it as a user would, probes through the real routes with an `expect` regex; never a probe that only reruns the test suite), or `"uat": null` with the reason.
 - Every description's first line is `SCOPE SELF-CHECK (run first):` plus the one command that proves the listed files are the right ones.
 - **Brief:** when 3 or more tasks share a spec, value table, rename map or security list, write it once to `.softhouse/briefs/{run_id}/brief.md` (template: `templates/brief.md` in the Softhouse repo), set top-level `"brief"` to that path, commit it with the plan, and keep task descriptions to their delta.
 - Scale check: split a task that spans several whole large files or documents. Keep dependency installs in ONE task per run.
@@ -101,17 +102,21 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
      "isolation": "worktree",
      "budget_tokens": 0,
      "brief": null,
+     "external_sources": [],
+     "uat": null,
+     "verified": null,
      "backlog": [],
      "tasks": [...]
    }
    ```
-2. Display the task graph table (and, in the summary under it, which escalation tags fired and what changed, and the budget):
+1b. **Probe every source**, exactly as `/softhouse` After planning step 1b: `scripts/ci/source-probe.sh` per `external_sources` entry, saving OK responses to `tests/fixtures/sources/<name>.<ext>`; a NOT OK entry is fixed (real address) or dropped (not really called) and probed again, never kept; requirement URLs are probed as advisory, skipping placeholders and duplicates of a listed source; fixture paths for a source are removed from every `files_hint`.
+2. Display the task graph table (and, in the summary under it, each source's probe line, the live check or `uat: none — <reason>` (a run without one can only complete UNVERIFIED), which escalation tags fired and what changed, and the budget):
    ```
    | ID | Title | Role | Executor | Model | Target | Deps | Files | Protected | Promotion |
    |----|-------|------|----------|-------|--------|------|-------|-----------|-----------|
    ```
 3. Show the dependency/parallelism structure visually, and call out which tasks are orchestrator/user-executed (they gate live-system windows)
-4. Commit AND push: `git add .softhouse/tasks.json && git commit -m "softhouse: plan — <feature>" && git push`
+4. Commit AND push: `git add .softhouse/tasks.json && git commit -m "softhouse: plan — <feature>"`, then each OK source's response in its own commit (`git add tests/fixtures/sources/<name>.<ext> && git commit -m "softhouse: probe <name>"`), then `git push`
 
 ### Output
 Tell the user:

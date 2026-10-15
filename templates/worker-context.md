@@ -93,6 +93,9 @@ project has one, so workers do not assume unreachable code is live.>
 11. Orchestrator-owned shared files (<entry points, bootstrap, routes, config registration,
     compose — list them>) are never edited by a worker. Put the exact lines the orchestrator
     must add under `## Wiring for the orchestrator` in your handoff; it wires them before review.
+12. Outside sources: call only the addresses the task names, test against the saved real
+    responses under `tests/fixtures/sources/`, and never write fixture data for a source
+    yourself (rejected as `invented-fixture`). Build other shapes (empty, null) in test code.
 
 ## Handoff (max 40 lines per attempt, at `.softhouse/handoff/{run_id}/{task.id}.md`)
 ```
