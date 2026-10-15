@@ -18,6 +18,16 @@ How to bring the system under test current. **Orchestrator-only** — a worker a
 git pull && docker compose up -d --build
 ```
 
+## Live-check hygiene
+
+Softhouse runs setup through `scripts/ci/uat-setup.sh` (2.9.1): `port-free <port>` first, `venv` for a Python project (`.softhouse/uat-venv`; never `pip install` into the host python), `start '<command>'` for each command that brings something up (own process group, output to a file), `stop` at the end, pass or fail. Write setup commands plainly:
+
+```bash
+python -m app.backfill --from 2026-10-01 --to 2026-10-02
+uvicorn app.main:app --port 8000 &        # backgrounded: uat-setup.sh stops it afterwards
+for i in $(seq 30); do curl -sf http://127.0.0.1:8000/health >/dev/null && break; sleep 1; done
+```
+
 ## Suites
 
 Named suites and their exact commands. Suite names are what `/softhouse-uat <suite>` matches on.
