@@ -19,6 +19,10 @@
 #                  skipped in test and fixture files, and for placeholders
 #                  (changeme, example, xxx, your-api-key, <...>, ${...}, one repeated char)
 #
+# Not scanned: tests/fixtures/sources/, the real responses the orchestrator
+# saved from outside sources (a scraped page may carry a public key or a JWT;
+# workers cannot edit those files, scripts/fixture-provenance.sh enforces it).
+#
 # Allow-list: .softhouse/secret-scan-allow.txt, one extended regex per line
 # (# comments). A regex matching a path exempts that file; one matching a line
 # skips that line. Keep fake tokens of your own redaction tests there.
@@ -29,7 +33,7 @@
 set -uo pipefail
 
 if [ $# -lt 2 ]; then
-  sed -n '27,28p' "$0" >&2
+  sed -n '31,32p' "$0" >&2
   exit 2
 fi
 BASE="$1"; BRANCH="$2"
@@ -105,7 +109,7 @@ while IFS= read -r raw; do
     '+++ '*)
       path="${raw#+++ }"; path="${path#b/}"
       skip=0; fixture=0; bare=0
-      if [ "$path" = /dev/null ] || allowed "$path"; then skip=1; continue; fi
+      if [ "$path" = /dev/null ] || [[ "$path" == tests/fixtures/sources/* ]] || allowed "$path"; then skip=1; continue; fi
       is_fixture "$path" && fixture=1
       bare_literals "$path" && bare=1
       if secret_path "$path"; then report "$path" 1 "Secret file path"; skip=1; fi

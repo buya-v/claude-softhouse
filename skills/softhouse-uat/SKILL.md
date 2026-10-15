@@ -36,7 +36,7 @@ Resolve the UAT definition for the current working directory, in this order:
 - If any fail: warn the user and ask whether to start/deploy services first. Do NOT deploy anything yourself unless the project config explicitly sanctions it — deploys to live systems are orchestrator actions and may need a user-scheduled window.
 
 ### 1b. Live-check hygiene (v2.9.1)
-- `scripts/ci/uat-setup.sh port-free <port>` for each port the system under test serves on. A busy port means a server this run did not start would answer: stop and report its holder.
+- Before a command that starts a server process itself (`uvicorn … &`, `npm start &`): `scripts/ci/uat-setup.sh port-free <port>`. A busy port means a server this run did not start would answer: stop and report its holder. Skip it for a deploy of a managed stack (`docker compose up -d --build` replaces what holds the port) and for a live or staging system the suites target.
 - Python project: `scripts/ci/uat-setup.sh venv` (`.softhouse/uat-venv`, uv first). Never `pip install` into the host python and never `--break-system-packages`; a uv- or Homebrew-managed python refuses it, and a correct change then fails on a missing module.
 - Start anything the suites need with `scripts/ci/uat-setup.sh start '<command>'` (own process group, output to a file: a backgrounded server can neither hang the run nor outlive it). Run suite commands that need the venv with `scripts/ci/uat-setup.sh run '<command>'`.
 - At the end, pass or fail: `scripts/ci/uat-setup.sh stop`, and put its `stopped N …` line in the report.
@@ -49,7 +49,7 @@ Resolve the UAT definition for the current working directory, in this order:
 - Pass/fail summary with counts per suite
 - For failures: test name, error message, evidence path (screenshot/report)
 - Overall verdict: **PASS** (all green) or **FAIL** (any red)
-- **Verified or not (v2.9):** say whether anything ran against the RUNNING system (config suites, the planned live check, or fallback b/c). Only fallback (a) — the test suite in isolation — means **UNVERIFIED**: the tests agree with each other, which is not evidence that the feature works. `/softhouse` records this as `verified` in `tasks.json`.
+- **Verified or not (v2.9):** say whether anything ran against the RUNNING system (config suites, the planned live check, or fallback b/c). Only isolated test suites — fallback (a), or a configured suite that just reruns `pytest`/`npm test`/`go test` — means **UNVERIFIED**: the tests agree with each other, which is not evidence that the feature works. `/softhouse` records this as `verified` in `tasks.json`.
 
 ### 4. Baseline updates (visual suites only)
 If the project declares a visual-regression suite and failures are confirmed INTENTIONAL by the user, run the project's declared update-snapshots command. Never update baselines without explicit user confirmation.

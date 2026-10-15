@@ -98,6 +98,10 @@ check "fixtures: a worker-written fixture beside a probed source is flagged" 1 '
 absent "fixtures: code and test files are not flagged" 'app/a.py|test_a.py' bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
 git -C "$R" rm -q tests/fixtures/mongolbank_sample.json && git -C "$R" commit -qm rm
 check "fixtures: reading the saved response only is clean" 0 - bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
+mkdir -p "$R/internal/x/testdata" && echo '{"golden":1}' > "$R/internal/x/testdata/golden.json" && commit_all "$R"
+check "fixtures: an undeclared local data file is flagged" 1 'internal/x/testdata/golden.json' bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
+check "fixtures: a declared local fixture (--allow) passes" 0 - bash -c "cd '$R' && '$FP' main task --allow internal/x/testdata/golden.json tests/fixtures/sources/rates.json"
+check "fixtures: --allow without a path is a usage error" 2 - bash -c "cd '$R' && '$FP' main task --allow"
 echo '{"edited":1}' > "$R/tests/fixtures/sources/rates.json" && commit_all "$R"
 check "fixtures: editing a saved response is flagged" 1 'a saved response' bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
 
@@ -174,6 +178,8 @@ done
 for not in 'config.py:[2347]:' 'deploy.env:[23]:' 'test_cfg.py' 'env.example' 'Zx81|hunter2|AKIAIOS|ghp_'; do
   absent "secrets: does not report $not" "$not" bash -c "cd '$R' && '$SS' main work"
 done
+mkdir -p "$R/tests/fixtures/sources" && printf '<script>key="AIzaSyA1234567890abcdefghijklmnopqrstuv"</script>\n' > "$R/tests/fixtures/sources/page.html" && commit_all "$R"
+absent "secrets: saved source responses are not scanned" 'fixtures/sources' bash -c "cd '$R' && '$SS' main work"
 mkdir -p "$R/.softhouse" && echo '^app/config\.py$' > "$R/.softhouse/secret-scan-allow.txt"
 absent "secrets: an allow-listed path is exempt" 'app/config.py' bash -c "cd '$R' && '$SS' main work"
 

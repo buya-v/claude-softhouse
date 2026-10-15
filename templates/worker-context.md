@@ -96,6 +96,8 @@ project has one, so workers do not assume unreachable code is live.>
 12. Outside sources: call only the addresses the task names, test against the saved real
     responses under `tests/fixtures/sources/`, and never write fixture data for a source
     yourself (rejected as `invented-fixture`). Build other shapes (empty, null) in test code.
+    The only other data files you may write under a fixtures/testdata/samples/mocks
+    directory are the ones your task lists in `local_fixtures`.
 13. Never turn a failure into an empty success: no catch-all handler whose body only
     discards the error (`except Exception: data = []`, `catch {}`, `.catch(() => [])`).
     Let it raise, or log and record it. A deliberate ignore needs its `file:line` and reason

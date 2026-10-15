@@ -10,25 +10,44 @@
 # A file is flagged when it sits under a fixture directory (fixtures,
 # __fixtures__, testdata, test_data, samples, mocks), has a data extension
 # (.html .htm .json .xml .csv .txt), was added or modified on the branch, and
-# is not one of the saved responses. A saved response the branch changed is
-# always flagged: workers may read it, never edit it.
+# is not one of the saved responses or a declared local fixture. A saved
+# response the branch changed is always flagged: workers may read it, never
+# edit it.
+#
+# Local fixtures: data that does NOT stand in for an outside source (a Go
+# testdata/golden.json, a sample config) is declared per task in tasks.json
+# `local_fixtures` with a reason, and passed here with --allow, so the plan and
+# this check agree on every file (a plan that lists a file this check rejects
+# deadlocks the task).
 #
 # Install into the consuming project as scripts/ci/fixture-provenance.sh.
 #
 # Usage:
-#   scripts/ci/fixture-provenance.sh <base-ref> <branch> [saved-response-path ...]
+#   scripts/ci/fixture-provenance.sh <base-ref> <branch> [--allow <path>]... [saved-response-path ...]
 #     The saved responses are the tasks.json external_sources[].path values,
-#     normally tests/fixtures/sources/<name>.<ext>. Diff is <base>...<branch>
-#     (three dots: what the branch changed since it forked).
+#     normally tests/fixtures/sources/<name>.<ext>; --allow names each of the
+#     task's local_fixtures. Diff is <base>...<branch> (three dots: what the
+#     branch changed since it forked).
 # Exit 0 = nothing invented, 1 = flagged files printed one per line, 2 = usage.
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-  sed -n '18,23p' "$0" >&2
+  sed -n '25,30p' "$0" >&2
   exit 2
 fi
 BASE="$1"; BRANCH="$2"; shift 2
-SAVED=("$@")
+SAVED=(); ALLOWED=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --allow) [ $# -ge 2 ] || { echo "--allow needs a path" >&2; exit 2; }; ALLOWED+=("$2"); shift 2 ;;
+    *) SAVED+=("$1"); shift ;;
+  esac
+done
+is_allowed() {
+  local file="$1" allowed
+  for allowed in ${ALLOWED[@]+"${ALLOWED[@]}"}; do [ "$file" = "$allowed" ] && return 0; done
+  return 1
+}
 
 is_saved() {
   local file="$1" saved
@@ -44,6 +63,7 @@ while IFS= read -r file; do
     flagged=1
     continue
   fi
+  is_allowed "$file" && continue
   lower="$(printf '%s' "$file" | tr '[:upper:]' '[:lower:]')"
   case "/$lower" in
     */fixtures/*|*/__fixtures__/*|*/testdata/*|*/test_data/*|*/samples/*|*/mocks/*) ;;

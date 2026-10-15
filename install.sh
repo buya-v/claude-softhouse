@@ -32,6 +32,12 @@ for skill in "$SRC"/*/; do
   cp -r "$skill" "$DEST/$name"
 done
 
+# The pipeline's helper scripts travel with the main skill, so STEP 0 can copy
+# any a project is missing into its scripts/ci/.
+mkdir -p "$DEST/softhouse/scripts"
+cp "$(dirname "$SRC")"/scripts/*.sh "$DEST/softhouse/scripts/"
+echo "  installing softhouse/scripts ($(ls "$(dirname "$SRC")"/scripts/*.sh | wc -l | tr -d ' ') helpers)"
+
 echo
 echo "Installed to $DEST"
 echo "Start a Claude Code session and run: /softhouse-plan <requirement>"

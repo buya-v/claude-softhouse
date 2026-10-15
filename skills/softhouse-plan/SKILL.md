@@ -31,7 +31,8 @@ Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.10) — a plan written
 7. If `.softhouse/queue/*.json` exists and `tasks.json` is idle, tell the user which plans are queued; a new plan written now may be queued instead of replacing `tasks.json` if the user prefers (`git mv` it under `.softhouse/queue/<run_id>.json`).
 8. If `.softhouse/protected-paths.txt` exists, read it: any task whose `files_hint` matches a protected path gets `"protected": true`, may not be `"haiku"`, and counts as security for metrics.
 9. If the project has `scripts/ci/wiring-census.sh`, run `--check` and note the count; the plan must not add library code without a call-site task.
-10. **Type baseline (v2.10):** if the project has a type checker its tests do not run (`tsc --noEmit`, `mypy`, `pyright`, `go vet`, `cargo check`), run it on current main and record `type_baseline` (`{"command": "...", "errors": n}`), as `/softhouse` STEP 0 4g; `null` when there is none.
+10. **Type baseline (v2.10):** if the project has a type checker its tests do not run (`tsc --noEmit`, `mypy`, `pyright`, `go vet`, `cargo check`), write its normalized error lines to `.softhouse/type-baseline.txt` and record `type_baseline` (`{"command", "errors", "file"}`), exactly as `/softhouse` STEP 0 4g; `null` when there is none.
+11. **Helper scripts:** copy any of `scripts/ci/source-probe.sh`, `fixture-provenance.sh`, `uat-setup.sh`, `swallowed-errors.sh`, `secret-scan.sh` the project lacks from `~/.claude/skills/softhouse/scripts/`, as `/softhouse` STEP 0 4f2.
 
 ### STEP 1 — Mode
 This command always plans. If a run is in progress, ask user whether to replace it or abort.
@@ -59,7 +60,7 @@ Each task object:
   "review_questions": []
 }
 ```
-Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of_scope`.
+Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of_scope`, `local_fixtures` (v2.9).
 
 **Planning rules:**
 - `agent_role`: `"coder"`, `"test_writer"`, `"designer"` (HTML mockups + design spec BEFORE code), or `"cx_reviewer"`
@@ -82,7 +83,7 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
 - **Every task `description` MUST end with a line starting `Done when:`** that names at least one runnable command and its expected result (exit code, grep count, HTTP status, coverage number). "build passes" alone is not acceptable. The reviewer executes this line verbatim in `/softhouse` STEP 5. A plan with a task lacking one is invalid — fix it before showing the plan.
 - Run each `Done when:` line now against current main and record its red result in the description (e.g. `Planning-time result (red): grep → 0`). A line that cannot run at fork time cannot be satisfied by a worker; mark stack-dependent assertions with an `orchestrator:` prefix so the worker skips them honestly. A task that makes something reachable (route, guard, middleware) carries an `orchestrator:` live probe through the real route with the real auth and its expected status — unit tests do not prove a route is mounted or that its auth admits the intended caller.
 - Tasks whose `files_hint` matches `.softhouse/protected-paths.txt` get `"protected": true` and will receive an independent review in `/softhouse` STEP 5 4e. **Every protected task carries 3–6 `review_questions`** the reviewer will ask ("where is the tenant checked before the query?"); the worker answers each with `file:line` in its handoff. Any task that adds or changes a handler always carries "which route and which auth reach this handler, and which test proves it?". If the plan assigns shared files (entry points, bootstrap, routes, config, compose) to the orchestrator, say so in the task and tell the worker to put the exact lines under `## Wiring for the orchestrator` in the handoff.
-- **External sources, fixtures and the live check (v2.9)** — the same three rules as `/softhouse` STEP 2: list every outside URL the shipped code calls in `external_sources` (exact url, method, expect, purpose; never a guessed address, never a URL that is only test data); never list a fixture file for a source in `files_hint` or ask a worker to save a sample response — the orchestrator commits the real one at `tests/fixtures/sources/<name>.<ext>` and tests build other shapes in code; with no `uat.md` and no CLAUDE.md UAT section, write the planned live check into `uat` (setup that starts it as a user would, probes through the real routes with an `expect` regex; never a probe that only reruns the test suite), or `"uat": null` with the reason. Write setup as plain commands (`uvicorn app.main:app --port 8000 &` then a wait for the port) and set `"port"`: `/softhouse` runs them through `scripts/ci/uat-setup.sh` (venv for Python, own process group, stopped afterwards), so the plan needs no teardown just to kill the server.
+- **External sources, fixtures and the live check (v2.9)** — the same three rules as `/softhouse` STEP 2: list every outside URL the shipped code calls in `external_sources` (`name` slug, exact url, method, expect, purpose; never a guessed address, never a URL that is only test data); never ask a worker to save a sample response — the orchestrator commits the real one at `tests/fixtures/sources/<name>.<ext>` and tests build other shapes in code; in a run with sources, a fixture-directory data file a task needs that is NOT a stand-in for a source goes in the task's `local_fixtures` (`[{"path", "reason"}]`) as well as `files_hint`, and no other fixture-directory data path may appear in `files_hint` (the review rejects it); with no `uat.md` and no CLAUDE.md UAT section, write the planned live check into `uat` (setup that starts it as a user would, probes through the real routes with an `expect` regex; never a probe that only reruns the test suite), or `"uat": null` with the reason. Write setup as plain commands (`uvicorn app.main:app --port 8000 &` then a wait for the port) and set `"port"`: `/softhouse` runs them through `scripts/ci/uat-setup.sh` (venv for Python, own process group, stopped afterwards), so the plan needs no teardown just to kill the server.
 - Every description's first line is `SCOPE SELF-CHECK (run first):` plus the one command that proves the listed files are the right ones.
 - **Brief:** when 3 or more tasks share a spec, value table, rename map or security list, write it once to `.softhouse/briefs/{run_id}/brief.md` (template: `templates/brief.md` in the Softhouse repo), set top-level `"brief"` to that path, commit it with the plan, and keep task descriptions to their delta.
 - Scale check: split a task that spans several whole large files or documents. Keep dependency installs in ONE task per run.
@@ -106,19 +107,21 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
      "external_sources": [],
      "uat": null,
      "type_baseline": null,
+     "base_commit": null,
+     "halt_reason": null,
      "verified": null,
      "backlog": [],
      "tasks": [...]
    }
    ```
-1b. **Probe every source**, exactly as `/softhouse` After planning step 1b: `scripts/ci/source-probe.sh` per `external_sources` entry, saving OK responses to `tests/fixtures/sources/<name>.<ext>`; a NOT OK entry is fixed (real address) or dropped (not really called) and probed again, never kept; requirement URLs are probed as advisory, skipping placeholders and duplicates of a listed source; fixture paths for a source are removed from every `files_hint`.
-2. Display the task graph table (and, in the summary under it, each source's probe line, the live check or `uat: none — <reason>` (a run without one can only complete UNVERIFIED), which escalation tags fired and what changed, and the budget):
+1b. **Probe every source**, exactly as `/softhouse` After planning step 1b: `scripts/ci/source-probe.sh` per `external_sources` entry, saving OK responses to `tests/fixtures/sources/<name>.<ext>`; a NOT OK entry is fixed (real address) or dropped (not really called) and probed again, never kept — if no address answers, STOP and tell the user what was probed; requirement URLs are probed as advisory, skipping placeholders and duplicates of a listed source; fixture-directory data paths not in a task's `local_fixtures` are removed from its `files_hint`; every task that names a source gets a `notes_to_executor` line with its address and saved response. If the user later edits or aborts the plan, delete saved responses that were not committed.
+2. Display the task graph table (and, in the summary under it, each source's probe line, the live check or `uat: none — <reason>` (with no `uat.md` and no CLAUDE.md UAT section either, the run can only complete UNVERIFIED), which escalation tags fired and what changed, and the budget):
    ```
    | ID | Title | Role | Executor | Model | Target | Deps | Files | Protected | Promotion |
    |----|-------|------|----------|-------|--------|------|-------|-----------|-----------|
    ```
 3. Show the dependency/parallelism structure visually, and call out which tasks are orchestrator/user-executed (they gate live-system windows)
-4. Commit AND push: `git add .softhouse/tasks.json && git commit -m "softhouse: plan — <feature>"`, then each OK source's response in its own commit (`git add tests/fixtures/sources/<name>.<ext> && git commit -m "softhouse: probe <name>"`), then `git push`
+4. Record `base_commit` (`git rev-parse HEAD` before the plan commit) in `tasks.json`, then commit AND push: `git add .softhouse/tasks.json && git commit -m "softhouse: plan — <feature>"`, then each OK source's response in its own commit (`git add tests/fixtures/sources/<name>.<ext> && git commit -m "softhouse: probe <name>"`), then `git push`
 
 ### Output
 Tell the user:
