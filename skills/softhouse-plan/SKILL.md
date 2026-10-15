@@ -3,14 +3,14 @@ name: softhouse-plan
 description: Planning-only phase of the Softhouse pipeline — breaks a requirement into a reviewable task graph with executor routing, dependencies, and model assignments, writes it to .softhouse/tasks.json, and stops. Never spawns worker agents or modifies source code. Use when the user runs /softhouse-plan or wants to review a pipeline plan before executing it with /softhouse resume.
 ---
 
-# /softhouse-plan — Plan Only (No Execution) (v2.9.1)
+# /softhouse-plan — Plan Only (No Execution) (v2.10)
 
-<!-- SOFTHOUSE_PIPELINE_VERSION: 2.9.1 -->
-**PIPELINE VERSION: `2.9.1`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.10 -->
+**PIPELINE VERSION: `2.10`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
 
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 
-Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.9.1) — a plan written here must execute unmodified under `/softhouse resume`.
+Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.10) — a plan written here must execute unmodified under `/softhouse resume`.
 
 ## Usage
 - `/softhouse-plan <requirement>` — Generate a task plan
@@ -31,6 +31,7 @@ Schema and rules are IDENTICAL to `/softhouse` STEP 2 (v2.9.1) — a plan writte
 7. If `.softhouse/queue/*.json` exists and `tasks.json` is idle, tell the user which plans are queued; a new plan written now may be queued instead of replacing `tasks.json` if the user prefers (`git mv` it under `.softhouse/queue/<run_id>.json`).
 8. If `.softhouse/protected-paths.txt` exists, read it: any task whose `files_hint` matches a protected path gets `"protected": true`, may not be `"haiku"`, and counts as security for metrics.
 9. If the project has `scripts/ci/wiring-census.sh`, run `--check` and note the count; the plan must not add library code without a call-site task.
+10. **Type baseline (v2.10):** if the project has a type checker its tests do not run (`tsc --noEmit`, `mypy`, `pyright`, `go vet`, `cargo check`), run it on current main and record `type_baseline` (`{"command": "...", "errors": n}`), as `/softhouse` STEP 0 4g; `null` when there is none.
 
 ### STEP 1 — Mode
 This command always plans. If a run is in progress, ask user whether to replace it or abort.
@@ -104,6 +105,7 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
      "brief": null,
      "external_sources": [],
      "uat": null,
+     "type_baseline": null,
      "verified": null,
      "backlog": [],
      "tasks": [...]

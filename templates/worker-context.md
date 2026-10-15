@@ -96,6 +96,14 @@ project has one, so workers do not assume unreachable code is live.>
 12. Outside sources: call only the addresses the task names, test against the saved real
     responses under `tests/fixtures/sources/`, and never write fixture data for a source
     yourself (rejected as `invented-fixture`). Build other shapes (empty, null) in test code.
+13. Never turn a failure into an empty success: no catch-all handler whose body only
+    discards the error (`except Exception: data = []`, `catch {}`, `.catch(() => [])`).
+    Let it raise, or log and record it. A deliberate ignore needs its `file:line` and reason
+    under Decisions in the handoff (rejected as `swallowed-error` otherwise).
+14. No credentials in the diff: read them from the environment. Values that look like a key,
+    token or password are caught by the secret scan before merge (`secret-in-diff`).
+15. Type checker: this run's baseline error count may not rise; run the project's type
+    check on your packages, since the test runner may not check types.
 
 ## Handoff (max 40 lines per attempt, at `.softhouse/handoff/{run_id}/{task.id}.md`)
 ```

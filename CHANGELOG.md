@@ -2,6 +2,16 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.10] — 2026-10-15
+
+**Review scans**, ported from softfactory 5.7, 6.2.0, 6.3.2 and 6.4.0. MINOR.
+
+- **Swallowed-error scan** (STEP 5 4h, worker-context hard gate 13): `scripts/ci/swallowed-errors.sh` lists catch-all handlers a branch adds whose body only discards the error — Python `except:`/`except Exception:` with `pass`, `return []`, `x = []`; JS/TS `catch {}`, a catch that only returns null/[]/{}, `.catch(() => [])` whose value is used; Go `if err != nil { return nil }`. Tests, comments, narrow handlers and handlers that log or re-raise are ignored. A hit is `REJECTED` (`swallowed-error`) unless the handoff justifies that line; justified hits go to Unverified assumptions. The Bank of Mongolia service's `except Exception: parsed = []` turned a live 404 into HTTP 200 `[]`.
+- **Secret scan before every merge and the final push** (STEP 6 0b, STEP 9): `scripts/ci/secret-scan.sh` flags secret files (`.env`, `*.pem`, `id_rsa`, …) and credential VALUES — provider-shaped tokens (PEM, sk-/sk-ant-, GitHub, Slack, AWS, Google, JWT, URL passwords) and credential-named assignments only when they hold a hard-coded, non-placeholder literal. It prints `path:line: kind`, never the value. Allow-list: `.softhouse/secret-scan-allow.txt`. Tag `secret-in-diff`.
+- **Type gate against the run's baseline** (STEP 0 4g, STEP 5 4b, STEP 7, hard gate 15): `type_baseline` records the type checker's error count on main; a branch or merged main above it fails (`type-errors-added`). A non-compiling change once merged in softfactory under tsx-only tests.
+- **Test evidence in every language** (STEP 5 4d): a test writer's diff must add a real case — pytest/unittest, Go, Rust, JUnit/Kotlin, JS/TS, .NET spellings listed — else `no-test-cases`. softfactory rejected correct pytest files when it knew only JS and Go.
+- Metrics gain `type_errors_before/after`; `docs/softfactory-lessons.md` maps each 2.9–2.10 rule to the softfactory issue it came from.
+
 ## [2.9.1] — 2026-10-15
 
 **Live-check hygiene**, from the same Bank of Mongolia service's later softfactory runs (6.4.4, 6.4.5) and its `.pyc` merge halt. MINOR.

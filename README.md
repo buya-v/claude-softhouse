@@ -7,7 +7,7 @@ Softhouse turns a one-line requirement into a planned, parallelized, reviewed, a
 It ships as three Claude Code skills plus an optional fourth for unattended multi-run programs — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.9.1-blue)
+![Version](https://img.shields.io/badge/version-2.10-blue)
 
 ---
 
@@ -81,14 +81,18 @@ STEP 3  Execute         push main, then fan out worktree agents by dependency le
                         blindly; shared-sequential mode for repos where worktrees don't work
 STEP 5  Review          scope check, fork-freshness check, non-negotiables scan, the
                         orchestrator EXECUTES the acceptance line and stores evidence,
+                        type gate against the run's baseline, invented-fixture and
+                        swallowed-error scans, a real test case in any language,
                         blind independent review for protected/security diffs that verifies
                         the worker's review answers, CX score
                         → APPROVED / MICRO-FIX / REJECTED (one retry, prompt must change)
    5b   Design gate     publish mockup → you approve/revise/skip → inject into coder task
   5.5   UAT             per-project, from .softhouse/uat.md, else the planned live check;
+                        project venv, setup in its own process group, stopped afterwards;
                         must PASS to complete; "verified" only if it ran against the
                         running system; promotion: "test" work stops at TEST
-STEP 6  Merge           --no-ff in dependency order, batched integration tests, push per batch
+STEP 6  Merge           secret scan, then --no-ff in dependency order, batched integration
+                        tests, push per batch; environment faults halt without a retry
   6.5   DesignSync      best-effort component-library sync (skippable, never a gate)
 STEP 7  Integration     wiring census may not have risen; full suite on merged main
 STEP 8  PostMortem      postmortem to patterns-archive.md; promote ≤3 rules to patterns.md,
