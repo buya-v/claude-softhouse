@@ -109,6 +109,7 @@ Optional: `spec` (§-pointer into a spec document), `notes_to_executor`, `out_of
      "type_baseline": null,
      "base_commit": null,
      "halt_reason": null,
+     "status_before_halt": null,
      "verified": null,
      "backlog": [],
      "tasks": [...]

@@ -101,6 +101,8 @@ check "fixtures: reading the saved response only is clean" 0 - bash -c "cd '$R' 
 mkdir -p "$R/internal/x/testdata" && echo '{"golden":1}' > "$R/internal/x/testdata/golden.json" && commit_all "$R"
 check "fixtures: an undeclared local data file is flagged" 1 'internal/x/testdata/golden.json' bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
 check "fixtures: a declared local fixture (--allow) passes" 0 - bash -c "cd '$R' && '$FP' main task --allow internal/x/testdata/golden.json tests/fixtures/sources/rates.json"
+echo '{"golden":2}' > "$R/internal/x/testdata/second.json" && commit_all "$R"
+check "fixtures: two local fixtures need one --allow each" 0 - bash -c "cd '$R' && '$FP' main task --allow internal/x/testdata/golden.json --allow internal/x/testdata/second.json tests/fixtures/sources/rates.json"
 check "fixtures: --allow without a path is a usage error" 2 - bash -c "cd '$R' && '$FP' main task --allow"
 echo '{"edited":1}' > "$R/tests/fixtures/sources/rates.json" && commit_all "$R"
 check "fixtures: editing a saved response is flagged" 1 'a saved response' bash -c "cd '$R' && '$FP' main task tests/fixtures/sources/rates.json"
@@ -179,7 +181,9 @@ for not in 'config.py:[2347]:' 'deploy.env:[23]:' 'test_cfg.py' 'env.example' 'Z
   absent "secrets: does not report $not" "$not" bash -c "cd '$R' && '$SS' main work"
 done
 mkdir -p "$R/tests/fixtures/sources" && printf '<script>key="AIzaSyA1234567890abcdefghijklmnopqrstuv"</script>\n' > "$R/tests/fixtures/sources/page.html" && commit_all "$R"
-absent "secrets: saved source responses are not scanned" 'fixtures/sources' bash -c "cd '$R' && '$SS' main work"
+check "secrets: an unlisted file under fixtures/sources is still scanned" 1 'fixtures/sources/page.html:1: Google API key' bash -c "cd '$R' && '$SS' main work"
+absent "secrets: a --skip saved response is not scanned" 'fixtures/sources' bash -c "cd '$R' && '$SS' main work --skip tests/fixtures/sources/page.html"
+check "secrets: --skip without a path is a usage error" 2 - bash -c "cd '$R' && '$SS' main work --skip"
 mkdir -p "$R/.softhouse" && echo '^app/config\.py$' > "$R/.softhouse/secret-scan-allow.txt"
 absent "secrets: an allow-listed path is exempt" 'app/config.py' bash -c "cd '$R' && '$SS' main work"
 

@@ -19,24 +19,33 @@
 #                  skipped in test and fixture files, and for placeholders
 #                  (changeme, example, xxx, your-api-key, <...>, ${...}, one repeated char)
 #
-# Not scanned: tests/fixtures/sources/, the real responses the orchestrator
-# saved from outside sources (a scraped page may carry a public key or a JWT;
-# workers cannot edit those files, scripts/fixture-provenance.sh enforces it).
+# --skip <path> (repeatable) leaves out one file: the real responses the
+# orchestrator saved from outside sources (tasks.json external_sources[].path),
+# since a scraped page may carry a public key or a JWT. Only those exact paths:
+# a worker-added file under tests/fixtures/sources/ is still scanned.
 #
 # Allow-list: .softhouse/secret-scan-allow.txt, one extended regex per line
 # (# comments). A regex matching a path exempts that file; one matching a line
 # skips that line. Keep fake tokens of your own redaction tests there.
 #
 # Install into the consuming project as scripts/ci/secret-scan.sh.
-# Usage: scripts/ci/secret-scan.sh <base-ref> <branch>
+# Usage: scripts/ci/secret-scan.sh <base-ref> <branch> [--skip <path>]...
 # Prints `path:line: <kind>` per hit. Exit 0 = clean, 1 = hits, 2 = usage.
 set -uo pipefail
 
 if [ $# -lt 2 ]; then
-  sed -n '31,32p' "$0" >&2
+  sed -n '31,33p' "$0" >&2
   exit 2
 fi
-BASE="$1"; BRANCH="$2"
+BASE="$1"; BRANCH="$2"; shift 2
+SKIP=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skip) [ $# -ge 2 ] || { echo "--skip needs a path" >&2; exit 2; }; SKIP+=("$2"); shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+skipped() { local s; for s in ${SKIP[@]+"${SKIP[@]}"}; do [ "$1" = "$s" ] && return 0; done; return 1; }
 ROOT="$(git rev-parse --show-toplevel)"
 ALLOW_FILE="$ROOT/.softhouse/secret-scan-allow.txt"
 allow=()
@@ -109,7 +118,7 @@ while IFS= read -r raw; do
     '+++ '*)
       path="${raw#+++ }"; path="${path#b/}"
       skip=0; fixture=0; bare=0
-      if [ "$path" = /dev/null ] || [[ "$path" == tests/fixtures/sources/* ]] || allowed "$path"; then skip=1; continue; fi
+      if [ "$path" = /dev/null ] || skipped "$path" || allowed "$path"; then skip=1; continue; fi
       is_fixture "$path" && fixture=1
       bare_literals "$path" && bare=1
       if secret_path "$path"; then report "$path" 1 "Secret file path"; skip=1; fi
