@@ -7,7 +7,7 @@ Softhouse turns a one-line requirement into a planned, parallelized, reviewed, a
 It ships as three Claude Code skills plus an optional fourth for unattended multi-run programs — no dependencies, no runtime, no service to host. Just Markdown that Claude Code executes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.10-blue)
+![Version](https://img.shields.io/badge/version-2.10.1-blue)
 
 ---
 

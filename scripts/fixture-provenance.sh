@@ -43,6 +43,10 @@ while [ $# -gt 0 ]; do
     *) SAVED+=("$1"); shift ;;
   esac
 done
+# An unresolvable ref made the diff empty and the check "clean" (exit 0); it is a usage error, never a verdict.
+for ref in "$BASE" "$BRANCH"; do
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null || { echo "not a commit: $ref" >&2; exit 2; }
+done
 is_allowed() {
   local file="$1" allowed
   for allowed in ${ALLOWED[@]+"${ALLOWED[@]}"}; do [ "$file" = "$allowed" ] && return 0; done

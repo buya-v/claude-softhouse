@@ -2,6 +2,15 @@
 
 All notable changes to the Softhouse pipeline. Versions refer to the pipeline itself, which all three skills share.
 
+## [2.10.1] — 2026-10-19
+
+**Gate scripts refuse a bad ref.** PATCH: no schema or step changes.
+
+- `secret-scan.sh` and `fixture-provenance.sh` returned 0 ("clean") when the base or branch did not resolve: the diff was empty. On a Go/Next.js NBFI project the run's final secret scan was given a mistyped base commit and reported clean; the scan from the right base then had a hit (a false positive, the scanner's own doc comment). Both now exit 2 (`not a commit: <ref>`), which STEP 0 4f2 already treats as a setup error, never a verdict.
+- `swallowed-errors.sh` exited 128 and `protected-paths-touched.sh` 129 on a bad ref. The latter promised "exit 0 always" and signals with its output, so a caller reading only the output saw "nothing protected". Both now exit 2 the same way; the protected-paths header says to check the status.
+- `swallowed-errors.sh` runs awk with `LC_ALL=C`. macOS awk under a UTF-8 locale died (exit 2, `towc: multibyte conversion failure`) on a diff with Cyrillic text, so the scan could not run on that project at all. The patterns are ASCII; hits are unchanged (tested on a Go `return nil` next to Cyrillic text).
+- Projects that copied the scripts into `scripts/ci/` keep the old copies: STEP 0 4f2 copies only missing scripts. Re-copy the four by hand.
+
 ## [2.10] — 2026-10-15
 
 **Review scans**, ported from softfactory 5.7, 6.2.0, 6.3.2 and 6.4.0. MINOR.

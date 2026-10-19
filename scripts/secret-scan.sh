@@ -46,6 +46,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 skipped() { local s; for s in ${SKIP[@]+"${SKIP[@]}"}; do [ "$1" = "$s" ] && return 0; done; return 1; }
+# A ref that does not resolve made the diff empty and the scan "clean" (exit 0); a mistyped base passed
+# the gate in a real run (2.10.1). An unresolvable ref is a usage error, never a verdict.
+for ref in "$BASE" "$BRANCH"; do
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null || { echo "not a commit: $ref" >&2; exit 2; }
+done
 ROOT="$(git rev-parse --show-toplevel)"
 ALLOW_FILE="$ROOT/.softhouse/secret-scan-allow.txt"
 allow=()
