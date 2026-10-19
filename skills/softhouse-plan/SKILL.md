@@ -3,10 +3,10 @@ name: softhouse-plan
 description: Planning-only phase of the Softhouse pipeline — breaks a requirement into a reviewable task graph with executor routing, dependencies, and model assignments, writes it to .softhouse/tasks.json, and stops. Never spawns worker agents or modifies source code. Use when the user runs /softhouse-plan or wants to review a pipeline plan before executing it with /softhouse resume.
 ---
 
-# /softhouse-plan — Plan Only (No Execution) (v2.10)
+# /softhouse-plan — Plan Only (No Execution) (v2.10.1)
 
-<!-- SOFTHOUSE_PIPELINE_VERSION: 2.10 -->
-**PIPELINE VERSION: `2.10`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
+<!-- SOFTHOUSE_PIPELINE_VERSION: 2.10.1 -->
+**PIPELINE VERSION: `2.10.1`** — must match `/softhouse`'s version exactly. These two skills share one schema; if they disagree, a plan written here will not execute correctly there.
 
 Runs only the planning phase of the Softhouse pipeline (Steps 0-2) without executing any tasks. Use this to review and refine the task graph before committing to execution.
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Prints the files changed between <base> and <branch> that match
-# .softhouse/protected-paths.txt. Exit 0 always; non-empty output means the
+# .softhouse/protected-paths.txt. Exit 0 on success; non-empty output means the
 # task needs the independent review (SKILL STEP 5 4e) and may not run on haiku.
+# Exit 2 = usage (an unresolvable ref): empty output then means nothing, so a
+# caller that reads only the output must also check the exit status.
 #
 # Install into the consuming project as scripts/ci/protected-paths-touched.sh
 # (the skill calls it by that path).
@@ -18,6 +20,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
 base="${1:-main}"; branch="${2:-HEAD}"
+for ref in "$base" "$branch"; do
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null || { echo "not a commit: $ref" >&2; exit 2; }
+done
 TEST_FILE_PATTERN="${TEST_FILE_PATTERN:-(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?|^tests?/|/tests?/|test_[^/]*\.py|_test\.py)$}"
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 git diff --name-only "$base".."$branch" > "$tmp"

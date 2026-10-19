@@ -28,7 +28,15 @@ if [ $# -lt 2 ]; then
   exit 2
 fi
 
-git diff --unified=0 --no-color "$1...$2" | awk '
+BASE="$1"; BRANCH="$2"
+# An unresolvable ref made git fail (exit 128), which a caller could not tell from a
+# scan result; it is a usage error, never a verdict.
+for ref in "$BASE" "$BRANCH"; do
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null || { echo "not a commit: $ref" >&2; exit 2; }
+done
+# Byte-wise awk: the patterns are ASCII, and macOS awk under a UTF-8 locale died
+# (exit 2, "towc: multibyte conversion failure") on a diff carrying Cyrillic text.
+git diff --unified=0 --no-color "$BASE...$BRANCH" | LC_ALL=C awk '
 function is_test(p,   b) {
   if (p ~ /(^|\/)(tests?|__tests__)\//) return 1
   b = p; sub(/.*\//, "", b)
